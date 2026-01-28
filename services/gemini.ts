@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { Chat, Schema } from "@google/genai";
 import type { StoryNode } from "../types";
 
-const generateSystemInstruction = (ipName: string, charName: string, ocProfile?: string) => `
+const generateSystemInstruction = (ipName: string, charName: string, startNode: string, ocProfile?: string) => `
 你是一个无限流互动文字冒险游戏的“地下城主”（DM）。
 本次游戏设定的背景世界是：**${ipName}**。
 玩家扮演的角色是：**${charName}**。
@@ -16,10 +16,13 @@ ${ocProfile}
 请基于《${ipName}》的原著设定，还原${charName}的性格、能力和人际关系。
 `}
 
+**重要：故事必须从以下关键情节点开始：**
+**${startNode}**
+
 你的任务是基于《${ipName}》的世界观，生动地描述场景，并为玩家提供能够影响故事走向的选择。
 
 规则：
-1. 故事应从该角色在原著中某个标志性的场景，或者一个符合人设的原创场景开始。
+1. 立即根据上述“关键情节点”进行开场描写。
 2. 叙述要生动沉浸，严谨遵守原著设定的物理法则和魔法/科技规则。保持简洁（大约100-200个汉字）。
 3. 每一轮必须提供**恰好 3 个**截然不同的预设选择。
 4. 玩家也可能输入自定义的行动描述（不在预设选项中），你需要根据玩家的描述合理推进剧情。
@@ -137,6 +140,18 @@ const visualPromptSchema: Schema = {
     },
   },
   required: ["visualDescription"],
+};
+
+const plotNodesSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    nodes: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "List of plot node descriptions in English or the original language of the work.",
+    },
+  },
+  required: ["nodes"],
 };
 
 export interface IpValidationResult {
@@ -437,13 +452,90 @@ Input: "${ipName}"
     });
   }
 
-  public async startGame(ipName: string, charName: string, ocProfile?: string): Promise<StoryNode> {
+  public async generatePlotNodes(ipName: string, charName: string, charMode: 'CANON' | 'OC', ocProfile?: string): Promise<string[]> {
+    return this.retryOperation(async () => {
+      let prompt = "";
+      
+      if (charMode === 'CANON') {
+        prompt = `
+ROLE: You are an analyst identifying key decision points in a character's arc.
+
+INPUT: Query format: WORK_NAME: "${ipName}", CHARACTER_NAME: "${charName}"
+
+TASK: Identify 3 to 5 moments in the original story where the CHARACTER_NAME makes a clear, active decision or choice that significantly alters their own path, relationships, or the plot's direction. Focus on choices that define the character.
+
+FRAMEWORK FOR IDENTIFYING A KEY DECISION NODE:
+A valid node must describe a moment where:
+The character is faced with a defined option or dilemma.
+The character takes a conscious action or makes a clear choice (to do or not do something).
+This choice has clear, tangible consequences for what happens next in their story.
+
+PROCESSING INSTRUCTIONS:
+SCAN FOR CROSSROADS: Review the character's story, looking for explicit moments of choice (e.g., to accept a quest, to betray an ally, to confess a truth, to spare a life).
+SELECT & PHRASE: For each chosen moment, phrase it concisely to highlight the decision itself.
+ENSURE CHRONOLOGY: List the decision points in the order they occur in the story.
+
+OUTPUT FORMAT:
+Output ONLY a JSON object containing a list of strings.
+Example: { "nodes": ["Decision to...", "Choice to...", "Vow to..."] }
+
+CRITICAL CONSTRAINT:
+DECISION-CENTRIC: Your output must focus on the character's act of choosing. If a moment is just something that happens to the character (e.g., "gets captured"), it is not valid unless it immediately leads to a clear choice they make in response.
+        `;
+      } else {
+        // OC Mode
+        prompt = `
+ROLE: You are a plot integration specialist in the original author's studio.
+
+INPUT:
+WORK: "${ipName}"
+OC_PROFILE: ${ocProfile || "No specific profile provided, assume generic archetype."}
+
+TASK: Using the OC_PROFILE as the SOLE basis for your reasoning, analyze the original work's timeline and propose 2 to 4 precise plot nodes where this specific OC could most logically and meaningfully be introduced or become involved.
+
+NODE SELECTION CRITERIA:
+- Logical Fit: A node must directly relate to the OC's defined attributes. For example, an OC with "affiliations": ["Jedi Order"] fits nodes involving Jedi, not unrelated bounty hunter plots.
+- Narrative Integration Point: Choose nodes where the OC could naturally enter the scene, interact with canon characters, or use their skills.
+- Temporal Specificity: Each node must be described with a concrete event, location, or chapter title that acts as a unique anchor in the story's chronology (e.g., "During the Battle of Helm's Deep", "At the Yule Ball dance").
+- Conciseness: Describe each node in 10 words or fewer.
+- Chronological Start: The story's canonical beginning event MUST be listed as the first node if the OC's profile justifies a presence from the start (e.g., a student character at a school story).
+
+PROCESSING FRAMEWORK (Follow this internally):
+1. Profile Scan: Extract key integration hooks from the OC_PROFILE.
+2. Timeline Match: Mentally scan the work's timeline for events where these hooks would be relevant.
+3. Node Evaluation: Select only nodes where the OC's presence would feel logical and additive to the existing scene.
+4. List Finalization: Ensure the list is chronological, starts correctly, contains 2-4 nodes, and descriptions are concise.
+
+OUTPUT FORMAT:
+Output ONLY a JSON object containing a list of strings.
+Example: { "nodes": ["Plot Node Description 1", "Plot Node Description 2"] }
+
+CRITICAL CONSTRAINTS:
+- No Invention: Only propose nodes from the original work's plot. Do not create new events.
+- Profile-Locked Reasoning: Your suggestions must be directly justified by the OC_PROFILE fields. Ignore any assumptions not grounded in it.
+`;
+      }
+
+      const response = await this.ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: plotNodesSchema,
+        }
+      });
+      const result = JSON.parse(response.text!);
+      return result.nodes;
+    });
+  }
+
+  public async startGame(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<StoryNode> {
     this.currentIp = ipName;
     return this.retryOperation(async () => {
       const chatSession = this.ai.chats.create({
         model: "gemini-3-pro-preview",
         config: {
-          systemInstruction: generateSystemInstruction(ipName, charName, ocProfile),
+          systemInstruction: generateSystemInstruction(ipName, charName, startNode, ocProfile),
           responseMimeType: "application/json",
           responseSchema: responseSchema,
         },
@@ -452,7 +544,7 @@ Input: "${ipName}"
       this.chat = chatSession;
 
       const result = await chatSession.sendMessage({
-        message: `开始故事。背景是《${ipName}》，我是${charName}。请描述开场。`,
+        message: `开始故事。背景是《${ipName}》，我是${charName}。我们从这个节点开始：${startNode}。请描述开场。`,
       });
 
       return JSON.parse(result.text!) as StoryNode;
@@ -501,7 +593,11 @@ Input: "${ipName}"
         }
       }
       return null;
-    } catch (error) {
+    } catch (error: any) {
+      if (error.status === 'RESOURCE_EXHAUSTED' || error.code === 429) {
+          console.warn("Image generation quota exceeded. Skipping image.");
+          return null; // Silently fail so the story continues
+      }
       console.error("Failed to generate image:", error);
       return null;
     }

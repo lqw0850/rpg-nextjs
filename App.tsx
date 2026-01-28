@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GameStatus, type StoryNode, type Choice } from './types';
 import { gameService } from './services/gemini';
 import { NarrativeDisplay } from './components/NarrativeDisplay';
 import { Button } from './components/Button';
-import { Waves, Sparkles, Crown, Anchor, Image as ImageIcon, Send, ScrollText, BookOpen, User, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Sparkle, UserPlus, FileQuestion, Feather, Tag, RefreshCw, Camera, Globe } from 'lucide-react';
+import { Waves, Sparkles, Crown, Anchor, Image as ImageIcon, Send, ScrollText, BookOpen, User, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, UserPlus, FileQuestion, Feather, Tag, RefreshCw, Camera, Globe, MapPin, PenTool } from 'lucide-react';
 
-type SetupStep = 'SELECT_IP' | 'SELECT_CHARACTER';
+type SetupStep = 'SELECT_IP' | 'SELECT_CHARACTER' | 'SELECT_START_NODE';
 type CharacterMode = 'CANON' | 'OC';
 type OcStep = 'CONCEPT' | 'QUESTIONS' | 'IMAGE_GEN';
 
@@ -21,7 +21,7 @@ const CATEGORY_MAP: Record<string, string> = {
   'Science Fiction': '科幻'
 };
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [status, setStatus] = useState<GameStatus>(GameStatus.IDLE);
   const [storyNode, setStoryNode] = useState<StoryNode | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,12 +45,16 @@ const App: React.FC = () => {
   
   // OC State
   const [ocStep, setOcStep] = useState<OcStep>('CONCEPT');
-  const [ocConcept, setOcConcept] = useState('');
   const [ocQuestions, setOcQuestions] = useState<string[]>([]);
   const [ocAnswers, setOcAnswers] = useState<string[]>([]);
   const [ocImage, setOcImage] = useState<string | null>(null);
   const [ocVisualDesc, setOcVisualDesc] = useState('');
   const [isRegeneratingOc, setIsRegeneratingOc] = useState(false);
+  const [finalOcProfile, setFinalOcProfile] = useState<string>('');
+
+  // Start Node State
+  const [plotNodes, setPlotNodes] = useState<string[]>([]);
+  const [customStartNode, setCustomStartNode] = useState('');
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -74,10 +78,12 @@ const App: React.FC = () => {
         setCharMode('CANON');
         setCharacterName('');
         setOcStep('CONCEPT');
-        setOcConcept('');
         setOcQuestions([]);
         setOcImage(null);
         setOcVisualDesc('');
+        setFinalOcProfile('');
+        setPlotNodes([]);
+        setCustomStartNode('');
       } else {
         alert(`无法找到作品《${ipName}》或该作品不符合收录标准。请尝试更精确的名称。`);
       }
@@ -89,25 +95,20 @@ const App: React.FC = () => {
     }
   };
 
-  const handleStartGame = async (ocProfile?: string) => {
-    if (!ipName.trim() || !characterName.trim()) {
-      alert("请填写完整信息");
-      return;
-    }
-
+  const handleStartGame = async (startNode: string) => {
+    if (!startNode.trim()) return;
     setLoading(true);
     setSceneImage(null);
     setCustomInput('');
     try {
-      const initialNode = await gameService.startGame(ipName, characterName, ocProfile);
+      const initialNode = await gameService.startGame(ipName, characterName, startNode, finalOcProfile);
       setStoryNode(initialNode);
       setStatus(GameStatus.PLAYING);
       setShowChoices(false);
     } catch (error) {
       console.error("Error starting game", error);
       alert("无法连接到万界枢纽 (API 错误)，请检查网络连接。");
-    } finally {
-      setLoading(false);
+      setLoading(false); // Only reset loading if there is an error
     }
   };
 
@@ -118,35 +119,38 @@ const App: React.FC = () => {
     try {
       const result = await gameService.validateCharacter(ipName, characterName);
       if (result.isExist) {
-        // Use extracted appearance for consistent visuals, even for canon characters
+        // Use extracted appearance for consistent visuals
         if (result.appearance) {
            gameService.setOcVisualDescription(result.appearance);
         } else {
            gameService.setOcVisualDescription(""); 
         }
-        await handleStartGame();
+        
+        // Generate Plot Nodes instead of starting game immediately
+        const nodes = await gameService.generatePlotNodes(ipName, characterName, 'CANON');
+        setPlotNodes(nodes);
+        setSetupStep('SELECT_START_NODE');
       } else {
         setCanonValidationMsg("该角色似乎不属于此世界，请检查拼写或尝试创建原创角色。");
-        setLoading(false); 
       }
     } catch (error) {
        console.error(error);
        alert("验证失败，请重试");
-       setLoading(false);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGenerateQuestions = async () => {
-    if (!characterName.trim() || !ocConcept.trim()) {
-      alert("请填写角色名称和初步构想");
+    if (!characterName.trim()) {
+      alert("请填写角色名称");
       return;
     }
     setLoading(true);
     try {
-      const questions = await gameService.generateOcQuestions(ipName, characterName, ocConcept);
+      const questions = await gameService.generateOcQuestions(ipName, characterName, "");
       setOcQuestions(questions);
       
-      // Auto-fill 'Name' if present in questions
       const initialAnswers = new Array(questions.length).fill('');
       questions.forEach((q, i) => {
         if (q.toLowerCase() === 'name') {
@@ -167,20 +171,17 @@ const App: React.FC = () => {
   const handleGenerateOcImage = async () => {
     setLoading(true);
     try {
-      // 1. Construct the profile text
       const profile = `
 Name: ${characterName}
-Concept: ${ocConcept}
 Details:
 ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       `.trim();
+      setFinalOcProfile(profile);
 
-      // 2. Generate Visual Prompt
       const visualPrompt = await gameService.generateOcVisualPrompt(profile);
       setOcVisualDesc(visualPrompt);
       gameService.setOcVisualDescription(visualPrompt);
 
-      // 3. Generate the Image
       const image = await gameService.generateImage("Portrait shot, facing camera, character sheet style.", true);
       setOcImage(image);
       setOcStep('IMAGE_GEN');
@@ -205,14 +206,25 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     }
   };
 
-  const handleConfirmOcAndStart = async () => {
-    const profile = `
-角色概念: ${ocConcept}
+  const handleConfirmOcAndGenerateNodes = async () => {
+    setLoading(true);
+    try {
+      // Reconstruct profile just in case state was lost, though setFinalOcProfile handles it
+      const profile = finalOcProfile || `
 设定问答:
 ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join('\n')}
-    `.trim();
-    
-    await handleStartGame(profile);
+      `.trim();
+      setFinalOcProfile(profile);
+
+      const nodes = await gameService.generatePlotNodes(ipName, characterName, 'OC', profile);
+      setPlotNodes(nodes);
+      setSetupStep('SELECT_START_NODE');
+    } catch (error) {
+      console.error(error);
+      alert("生成剧情节点失败，请重试");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChoice = async (text: string) => {
@@ -254,9 +266,16 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     setIpOriginLang('');
     setOcImage(null);
     setOcVisualDesc('');
+    setFinalOcProfile('');
+    setPlotNodes([]);
+    setCustomStartNode('');
   };
 
-  // Generate image when story node changes
+  const onNarrativeComplete = useCallback(() => {
+    setShowChoices(true);
+    setLoading(false); // Ensure loading is off when text finishes
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     if (storyNode?.narrative) {
@@ -272,7 +291,6 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     return () => { isMounted = false; };
   }, [storyNode]);
 
-  // Auto-scroll logic (same as before)
   useEffect(() => {
     if (bottomRef.current) {
       setTimeout(() => {
@@ -294,14 +312,23 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
               万界传说
             </h1>
             <p className="text-ocean-100/80 text-lg font-sans max-w-lg mx-auto">
-              {setupStep === 'SELECT_IP' 
-                ? "第一步：连接时空坐标。输入你向往的世界名称。" 
-                : "第二步：塑造化身。选择你的降临身份。"}
+              {setupStep === 'SELECT_IP' && "第一步：连接时空坐标。输入你向往的世界名称。"}
+              {setupStep === 'SELECT_CHARACTER' && "第二步：塑造化身。选择你的降临身份。"}
+              {setupStep === 'SELECT_START_NODE' && "第三步：选择命运锚点。你将从哪里开始故事？"}
             </p>
           </div>
 
-          <div className="w-full max-w-xl bg-ocean-900/40 p-6 rounded-xl border border-ocean-700/50 backdrop-blur-sm shadow-xl transition-all duration-500">
+          <div className="w-full max-w-xl bg-ocean-900/40 p-6 rounded-xl border border-ocean-700/50 backdrop-blur-sm shadow-xl transition-all duration-500 relative">
             
+            {/* Loading Overlay during critical transitions */}
+            {loading && status === GameStatus.IDLE && setupStep === 'SELECT_START_NODE' && storyNode === null && (
+               <div className="absolute inset-0 z-50 bg-ocean-900/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-300">
+                  <div className="w-16 h-16 border-4 border-ocean-300 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <h3 className="text-xl font-serif text-white mb-2">正在重构世界线...</h3>
+                  <p className="text-ocean-300 text-sm animate-pulse">AI 正在根据你的选择推演因果，请稍候。</p>
+               </div>
+            )}
+
             {setupStep === 'SELECT_IP' && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                  <div className="space-y-2 text-left">
@@ -417,7 +444,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                       </Button>
                       <Button onClick={handleVerifyAndStartCanon} isLoading={loading} className="flex-1 text-lg group">
                         <span className="flex items-center justify-center gap-2">
-                          验证并开始 <Sparkles size={18} className="group-hover:animate-spin" />
+                          验证并下一步 <Sparkles size={18} className="group-hover:animate-spin" />
                         </span>
                       </Button>
                     </div>
@@ -441,17 +468,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                               className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all"
                             />
                           </div>
-                          <div className="space-y-2 text-left">
-                            <label className="text-ocean-100 text-sm font-serif flex items-center gap-2">
-                              <Sparkle size={16} /> 初步构想
-                            </label>
-                            <textarea 
-                              value={ocConcept}
-                              onChange={(e) => setOcConcept(e.target.value)}
-                              placeholder="例如：一个流浪的剑客，失去了一切记忆，但剑术超群..."
-                              className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all h-24 resize-none"
-                            />
-                          </div>
+                          
                           <div className="flex gap-3 pt-2">
                             <Button onClick={() => setSetupStep('SELECT_IP')} variant="secondary" className="px-4">
                               <ArrowLeft size={20} />
@@ -520,7 +537,6 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                          
                          <div>
                             <h3 className="text-xl font-serif text-white">{characterName}</h3>
-                            <p className="text-xs text-ocean-300 mt-1 max-w-xs mx-auto line-clamp-2">{ocConcept}</p>
                          </div>
 
                          <div className="flex gap-3 pt-2">
@@ -533,9 +549,9 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                             >
                               <RefreshCw size={18} className={`mr-2 ${isRegeneratingOc ? 'animate-spin' : ''}`} /> 重绘
                             </Button>
-                            <Button onClick={handleConfirmOcAndStart} isLoading={loading} className="flex-1 group">
+                            <Button onClick={handleConfirmOcAndGenerateNodes} isLoading={loading} className="flex-1 group">
                               <span className="flex items-center justify-center gap-2">
-                                确认并开始 <Crown size={18} className="text-yellow-300 group-hover:scale-110" />
+                                确认并下一步 <ArrowRight size={18} className="group-hover:translate-x-1" />
                               </span>
                             </Button>
                           </div>
@@ -543,6 +559,80 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                      )}
                    </div>
                 )}
+              </div>
+            )}
+
+            {setupStep === 'SELECT_START_NODE' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="text-left space-y-2">
+                  <h3 className="text-lg font-serif text-white flex items-center gap-2">
+                     <MapPin size={20} className="text-yellow-300" /> 命运抉择点
+                  </h3>
+                  <p className="text-sm text-ocean-200">
+                    {charMode === 'CANON' 
+                       ? `检测到 ${characterName} 命运轨迹中的关键时刻。请选择你想要重写或经历的起点。`
+                       : `根据你的角色设定，这些是介入《${ipName}》故事的最佳时机。`
+                    }
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
+                    {plotNodes.map((node, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleStartGame(node)}
+                        disabled={loading}
+                        className="group relative p-4 bg-ocean-800/40 border border-ocean-700 hover:bg-ocean-700/50 hover:border-ocean-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-left transition-all duration-300 overflow-hidden shadow-lg flex items-start gap-3"
+                      >
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-ocean-900/50 border border-ocean-500/50 flex items-center justify-center text-xs text-ocean-300 font-serif">
+                          {idx + 1}
+                        </span>
+                        <span className="text-sm md:text-base text-ocean-100 group-hover:text-white leading-relaxed">
+                          {node}
+                        </span>
+                        <div className="absolute inset-0 border border-transparent group-hover:border-ocean-400/30 rounded-lg pointer-events-none transition-all"></div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Manual Input Section */}
+                  <div className="pt-2 border-t border-ocean-700/50">
+                    <div className="flex items-center gap-4 text-ocean-400/50 mb-3 text-xs font-serif tracking-wider uppercase">
+                      <div className="h-px bg-ocean-400/20 flex-1"></div>
+                      <span>或 自定义起点</span>
+                      <div className="h-px bg-ocean-400/20 flex-1"></div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                       <div className="relative flex-1">
+                          <PenTool size={16} className="absolute left-3 top-3.5 text-ocean-400/50" />
+                          <input 
+                            type="text"
+                            value={customStartNode}
+                            onChange={(e) => setCustomStartNode(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && customStartNode.trim() && handleStartGame(customStartNode)}
+                            placeholder="输入你想介入的时间点或事件..."
+                            className="w-full bg-ocean-900/60 border border-ocean-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all"
+                            disabled={loading}
+                          />
+                       </div>
+                       <Button 
+                         onClick={() => handleStartGame(customStartNode)} 
+                         disabled={!customStartNode.trim() || loading}
+                         className="px-4"
+                       >
+                         <ArrowRight size={20} />
+                       </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button onClick={() => setSetupStep('SELECT_CHARACTER')} variant="secondary" className="w-full" disabled={loading}>
+                    <ArrowLeft size={18} className="mr-2" /> 返回角色调整
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -584,7 +674,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
 
             <NarrativeDisplay 
               text={storyNode.narrative} 
-              onComplete={() => setShowChoices(true)} 
+              onComplete={onNarrativeComplete} 
             />
             
             <div className={`transition-opacity duration-700 ${showChoices && !loading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -592,7 +682,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                  <div className="space-y-6 mt-6">
                    {/* Preset Choices */}
                    <div className="grid grid-cols-1 gap-3">
-                     {storyNode.choices.map((choice) => (
+                     {storyNode.choices && storyNode.choices.map((choice) => (
                        <button
                          key={choice.id}
                          onClick={() => handleChoice(choice.text)}
@@ -676,7 +766,9 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
           <div className="flex justify-center items-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-ocean-400"></div>
             <span className="ml-3 text-ocean-400 animate-pulse font-serif">
-               {setupStep === 'SELECT_IP' && !storyNode ? "正在检索多元宇宙档案..." : "世界正在重构中..."}
+               {setupStep === 'SELECT_IP' && !storyNode && "正在检索多元宇宙档案..."}
+               {setupStep === 'SELECT_START_NODE' && !storyNode && "正在推演命运节点..."}
+               {status === GameStatus.PLAYING && "世界正在重构中..."}
             </span>
           </div>
         )}
@@ -727,5 +819,3 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     </div>
   );
 };
-
-export default App;
