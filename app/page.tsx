@@ -1,9 +1,11 @@
+"use client"
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GameStatus, type StoryNode, type Choice } from './types';
-import { gameService } from './services/gemini';
-import { NarrativeDisplay } from './components/NarrativeDisplay';
-import { Button } from './components/Button';
+import Image from 'next/image';
+import { GameStatus, type StoryNode, type Choice } from '../types';
 import { Waves, Sparkles, Crown, Anchor, Image as ImageIcon, Send, ScrollText, BookOpen, User, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, UserPlus, FileQuestion, Feather, Tag, RefreshCw, Camera, Globe, MapPin, PenTool } from 'lucide-react';
+import { Button } from '../components/Button';
+import { NarrativeDisplay } from '../components/NarrativeDisplay';
 
 type SetupStep = 'SELECT_IP' | 'SELECT_CHARACTER' | 'SELECT_START_NODE';
 type CharacterMode = 'CANON' | 'OC';
@@ -21,7 +23,7 @@ const CATEGORY_MAP: Record<string, string> = {
   'Science Fiction': '科幻'
 };
 
-export const App: React.FC = () => {
+export default function Home() {
   const [status, setStatus] = useState<GameStatus>(GameStatus.IDLE);
   const [storyNode, setStoryNode] = useState<StoryNode | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,7 +69,15 @@ export const App: React.FC = () => {
     setIpOriginLang('');
     
     try {
-      const result = await gameService.validateIp(ipName);
+      const response = await fetch('/api/validate-ip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ipName }),
+      });
+      const result = await response.json();
+      console.log(result)
       if (result.isExist) {
         setIpSummary(result.abstract || "无简介");
         setIpAuthor(result.author || "佚名");
@@ -101,7 +111,19 @@ export const App: React.FC = () => {
     setSceneImage(null);
     setCustomInput('');
     try {
-      const initialNode = await gameService.startGame(ipName, characterName, startNode, finalOcProfile);
+      const response = await fetch('/api/start-game', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          ipName, 
+          characterName, 
+          startNode, 
+          finalOcProfile 
+        }),
+      });
+      const initialNode = await response.json();
       setStoryNode(initialNode);
       setStatus(GameStatus.PLAYING);
       setShowChoices(false);
@@ -117,17 +139,37 @@ export const App: React.FC = () => {
     setLoading(true);
     setCanonValidationMsg('');
     try {
-      const result = await gameService.validateCharacter(ipName, characterName);
+      const response = await fetch('/api/validate-character', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ipName, characterName }),
+      });
+      const result = await response.json();
+      
       if (result.isExist) {
         // Use extracted appearance for consistent visuals
         if (result.appearance) {
-           gameService.setOcVisualDescription(result.appearance);
+          // Store appearance for later use
+          setOcVisualDesc(result.appearance);
         } else {
-           gameService.setOcVisualDescription(""); 
+          setOcVisualDesc(""); 
         }
         
         // Generate Plot Nodes instead of starting game immediately
-        const nodes = await gameService.generatePlotNodes(ipName, characterName, 'CANON');
+        const nodesResponse = await fetch('/api/generate-plot-nodes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            ipName, 
+            characterName, 
+            charMode: 'CANON' 
+          }),
+        });
+        const nodes = await nodesResponse.json();
         setPlotNodes(nodes);
         setSetupStep('SELECT_START_NODE');
       } else {
@@ -148,11 +190,18 @@ export const App: React.FC = () => {
     }
     setLoading(true);
     try {
-      const questions = await gameService.generateOcQuestions(ipName, characterName, "");
+      const response = await fetch('/api/generate-oc-questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ipName, characterName, concept: '' }),
+      });
+      const questions = await response.json();
       setOcQuestions(questions);
       
       const initialAnswers = new Array(questions.length).fill('');
-      questions.forEach((q, i) => {
+      questions.forEach((q: string, i: number) => {
         if (q.toLowerCase() === 'name') {
           initialAnswers[i] = characterName;
         }
@@ -178,11 +227,30 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       `.trim();
       setFinalOcProfile(profile);
 
-      const visualPrompt = await gameService.generateOcVisualPrompt(profile);
+      // Generate visual prompt
+      const visualPromptResponse = await fetch('/api/generate-oc-visual-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ profile }),
+      });
+      const visualPrompt = await visualPromptResponse.json();
       setOcVisualDesc(visualPrompt);
-      gameService.setOcVisualDescription(visualPrompt);
 
-      const image = await gameService.generateImage("Portrait shot, facing camera, character sheet style.", true);
+      // Generate image
+      const imageResponse = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          narrative: "Portrait shot, facing camera, character sheet style.", 
+          isOcPortrait: true,
+          ocVisualDescription: visualPrompt
+        }),
+      });
+      const image = await imageResponse.json();
       setOcImage(image);
       setOcStep('IMAGE_GEN');
     } catch (error) {
@@ -197,7 +265,18 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     if (!ocVisualDesc) return;
     setIsRegeneratingOc(true);
     try {
-      const image = await gameService.generateImage("Portrait shot, facing camera, character sheet style.", true);
+      const imageResponse = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          narrative: "Portrait shot, facing camera, character sheet style.", 
+          isOcPortrait: true,
+          ocVisualDescription: ocVisualDesc
+        }),
+      });
+      const image = await imageResponse.json();
       setOcImage(image);
     } catch (error) {
       console.error(error);
@@ -216,7 +295,19 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
       `.trim();
       setFinalOcProfile(profile);
 
-      const nodes = await gameService.generatePlotNodes(ipName, characterName, 'OC', profile);
+      const nodesResponse = await fetch('/api/generate-plot-nodes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          ipName, 
+          characterName, 
+          charMode: 'OC',
+          ocProfile: profile 
+        }),
+      });
+      const nodes = await nodesResponse.json();
       setPlotNodes(nodes);
       setSetupStep('SELECT_START_NODE');
     } catch (error) {
@@ -233,7 +324,14 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     setSceneImage(null);
     setCustomInput('');
     try {
-      const nextNode = await gameService.makeChoice(text);
+      const response = await fetch('/api/make-choice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ choiceText: text }),
+      });
+      const nextNode = await response.json();
       setStoryNode(nextNode);
       
       if (nextNode.status === 'GAME_OVER') {
@@ -280,16 +378,33 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     let isMounted = true;
     if (storyNode?.narrative) {
       setLoadingImage(true);
-      gameService.generateImage(storyNode.narrative)
-        .then(image => {
-          if (isMounted) {
-             setSceneImage(image);
-             setLoadingImage(false);
-          }
-        });
+      fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          narrative: storyNode.narrative,
+          isOcPortrait: false,
+          ocVisualDescription: ocVisualDesc
+        }),
+      })
+      .then(response => response.json())
+      .then(image => {
+        if (isMounted) {
+           setSceneImage(image);
+           setLoadingImage(false);
+        }
+      })
+      .catch(error => {
+        console.error("Failed to generate image", error);
+        if (isMounted) {
+          setLoadingImage(false);
+        }
+      });
     }
     return () => { isMounted = false; };
-  }, [storyNode]);
+  }, [storyNode, ocVisualDesc]);
 
   useEffect(() => {
     if (bottomRef.current) {
@@ -526,7 +641,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                        <div className="space-y-6 text-center animate-in fade-in zoom-in duration-500">
                          <div className="relative mx-auto w-48 h-48 md:w-64 md:h-64 rounded-xl overflow-hidden border-2 border-ocean-400/50 shadow-[0_0_30px_rgba(96,165,250,0.3)] bg-ocean-900/50">
                            {ocImage ? (
-                             <img src={ocImage} alt="OC Character" className="w-full h-full object-cover" />
+                             <Image src={ocImage} alt="OC Character" className="w-full h-full object-cover" fill />
                            ) : (
                              <div className="w-full h-full flex flex-col items-center justify-center text-ocean-400/50">
                                <User size={48} className="mb-2"/>
@@ -650,10 +765,13 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
 
             <div className="relative w-full aspect-square md:aspect-video rounded-xl overflow-hidden border border-ocean-400/30 bg-ocean-900/50 shadow-2xl flex items-center justify-center group">
               {sceneImage ? (
-                <img 
+                <Image 
                   src={sceneImage} 
                   alt="Scene visualization" 
                   className="w-full h-full object-cover animate-in fade-in duration-1000"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority
                 />
               ) : (
                 <div className="flex flex-col items-center text-ocean-400/50 animate-pulse">
@@ -666,8 +784,8 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
               
               {/* Optional: Show OC portrait in corner if exists */}
               {ocImage && (
-                <div className="absolute bottom-3 right-3 w-16 h-16 rounded-lg border border-ocean-400/50 overflow-hidden shadow-lg opacity-80 group-hover:opacity-100 transition-opacity">
-                   <img src={ocImage} className="w-full h-full object-cover" alt="OC" />
+                <div className="absolute bottom-3 right-3 w-16 h-16 rounded-lg border border-ocean-400/50 overflow-hidden shadow-lg opacity-80 group-hover:opacity-100 transition-opacity relative">
+                   <Image src={ocImage} className="w-full h-full object-cover" alt="OC" fill />
                 </div>
               )}
             </div>
@@ -818,4 +936,4 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
       </main>
     </div>
   );
-};
+}

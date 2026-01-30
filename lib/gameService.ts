@@ -184,10 +184,14 @@ export class GameService {
   private ai: GoogleGenAI;
   private chat: Chat | null = null;
   private currentIp: string = "";
-  private ocVisualDescription: string = ""; // Store OC visual traits
+  private ocVisualDescription: string = "";
 
   constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not set");
+    }
+    this.ai = new GoogleGenAI({ apiKey });
   }
 
   private async retryOperation<T>(operation: () => Promise<T>, retries = 3): Promise<T> {
@@ -437,7 +441,7 @@ Input: "${ipName}"
   public async generateOcVisualPrompt(profile: string): Promise<string> {
     return this.retryOperation(async () => {
       const response = await this.ai.models.generateContent({
-        model: "gemini-3-pro-preview",
+        model: "gemini-3-flash-preview",
         contents: `Based on the following character profile for an RPG, generate a concise but detailed visual description for an image generator (like Midjourney or Stable Diffusion). 
         Profile: ${profile}
         
@@ -517,7 +521,7 @@ CRITICAL CONSTRAINTS:
       }
 
       const response = await this.ai.models.generateContent({
-        model: "gemini-3-pro-preview",
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -533,7 +537,7 @@ CRITICAL CONSTRAINTS:
     this.currentIp = ipName;
     return this.retryOperation(async () => {
       const chatSession = this.ai.chats.create({
-        model: "gemini-3-pro-preview",
+        model: "gemini-3-flash-preview",
         config: {
           systemInstruction: generateSystemInstruction(ipName, charName, startNode, ocProfile),
           responseMimeType: "application/json",
@@ -560,14 +564,15 @@ CRITICAL CONSTRAINTS:
     });
   }
 
-  public async generateImage(narrative: string, isOcPortrait: boolean = false): Promise<string | null> {
+  public async generateImage(narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string): Promise<string | null> {
     try {
       const context = this.currentIp ? `Style consistent with the world of ${this.currentIp}.` : "Fantasy style.";
       
       // If we have an OC description, include it in the prompt
       let characterContext = "";
-      if (this.ocVisualDescription) {
-        characterContext = `The MAIN CHARACTER in the image MUST look like this: ${this.ocVisualDescription}.`;
+      const visualDesc = ocVisualDescription || this.ocVisualDescription;
+      if (visualDesc) {
+        characterContext = `The MAIN CHARACTER in the image MUST look like this: ${visualDesc}.`;
       }
 
       let prompt = "";
@@ -604,4 +609,12 @@ CRITICAL CONSTRAINTS:
   }
 }
 
-export const gameService = new GameService();
+// 导出单例实例
+let gameServiceInstance: GameService | null = null;
+
+export const getGameService = (): GameService => {
+  if (!gameServiceInstance) {
+    gameServiceInstance = new GameService();
+  }
+  return gameServiceInstance;
+};
