@@ -456,7 +456,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                     onChange={(e) => setIpName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleVerifyIp()}
                     placeholder="例如：三体、哈利波特、权力的游戏..."
-                    className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all"
+                    className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
                     autoFocus
                   />
                   <p className="text-xs text-ocean-400/60 pl-1">AI 将验证该世界是否存在。</p>
@@ -509,7 +509,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                      </div>
                    )}
 
-                   <p className="text-sm text-ocean-100/80 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all duration-300 cursor-help border-l-2 border-ocean-500/30 pl-3">
+                   <p className="text-sm text-ocean-100/80 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all duration-300 cursor-help border-l-2 border-ocean-500/30 pl-3 font-story">
                      {ipSummary}
                    </p>
                 </div>
@@ -543,7 +543,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                         onChange={(e) => setCharacterName(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleVerifyAndStartCanon()}
                         placeholder="例如：罗辑、马尔福..."
-                        className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all"
+                        className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
                         autoFocus
                       />
                       {canonValidationMsg && (
@@ -580,7 +580,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                               value={characterName}
                               onChange={(e) => setCharacterName(e.target.value)}
                               placeholder="你的原创角色名字"
-                              className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all"
+                              className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
                             />
                           </div>
                           
@@ -609,7 +609,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                           <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
                             {ocQuestions.map((q, idx) => (
                               <div key={idx} className="space-y-1 text-left">
-                                <label className="text-ocean-200 text-sm">{idx + 1}. {q}</label>
+                                <label className="text-ocean-200 text-sm font-story">{idx + 1}. {q}</label>
                                 <input
                                   type="text"
                                   value={ocAnswers[idx] || ''}
@@ -618,7 +618,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                                     newAnswers[idx] = e.target.value;
                                     setOcAnswers(newAnswers);
                                   }}
-                                  className="w-full bg-ocean-900/60 border border-ocean-600/50 rounded px-3 py-2 text-white text-sm focus:border-ocean-400 focus:outline-none"
+                                  className="w-full bg-ocean-900/60 border border-ocean-600/50 rounded px-3 py-2 text-white text-sm focus:border-ocean-400 focus:outline-none font-story"
                                 />
                               </div>
                             ))}
@@ -703,7 +703,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                         <span className="flex-shrink-0 w-6 h-6 rounded-full bg-ocean-900/50 border border-ocean-500/50 flex items-center justify-center text-xs text-ocean-300 font-serif">
                           {idx + 1}
                         </span>
-                        <span className="text-sm md:text-base text-ocean-100 group-hover:text-white leading-relaxed">
+                        <span className="text-sm md:text-base text-ocean-100 group-hover:text-white leading-relaxed font-story">
                           {node}
                         </span>
                         <div className="absolute inset-0 border border-transparent group-hover:border-ocean-400/30 rounded-lg pointer-events-none transition-all"></div>
@@ -728,7 +728,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                             onChange={(e) => setCustomStartNode(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && customStartNode.trim() && handleStartGame(customStartNode)}
                             placeholder="输入你想介入的时间点或事件..."
-                            className="w-full bg-ocean-900/60 border border-ocean-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all"
+                            className="w-full bg-ocean-900/60 border border-ocean-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
                             disabled={loading}
                           />
                        </div>
@@ -808,7 +808,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                        >
                          <div className="absolute inset-0 w-0 bg-white/5 transition-all duration-[250ms] ease-out group-hover:w-full"></div>
                          <div className="relative flex items-center justify-between">
-                           <span className="font-serif text-lg text-ocean-100 group-hover:text-white">{choice.text}</span>
+                           <span className="font-story text-lg text-ocean-100 group-hover:text-white">{choice.text}</span>
                            <Waves size={18} className="opacity-0 group-hover:opacity-100 transition-opacity text-ocean-400" />
                          </div>
                        </button>
@@ -830,7 +830,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                        onChange={(e) => setCustomInput(e.target.value)}
                        onKeyDown={(e) => e.key === 'Enter' && handleCustomAction()}
                        placeholder="描述你想做的事情..."
-                       className="flex-1 bg-ocean-900/50 border border-ocean-700 rounded-lg px-4 py-3 text-ocean-100 placeholder-ocean-500 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-serif"
+                       className="flex-1 bg-ocean-900/50 border border-ocean-700 rounded-lg px-4 py-3 text-ocean-100 placeholder-ocean-500 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
                        disabled={loading}
                      />
                      <button 
@@ -849,7 +849,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                   <h2 className={`text-3xl font-serif ${status === GameStatus.VICTORY ? 'text-yellow-300' : 'text-red-300'}`}>
                     {status === GameStatus.VICTORY ? "传奇的终章" : "命运的断点"}
                   </h2>
-                  <p className="text-ocean-100 italic text-lg">
+                  <p className="text-ocean-100 italic text-lg font-story">
                     {status === GameStatus.VICTORY ? "你在这个世界留下了不朽的传说。" : "旅途虽然中断，但故事尚未结束。"}
                   </p>
 
@@ -862,7 +862,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                            <ScrollText size={20} className="text-purple-300" />
                          </div>
                          <h3 className="font-serif text-xl text-purple-200">灵魂映像</h3>
-                         <p className="text-ocean-100/90 leading-relaxed font-sans max-w-xl">
+                         <p className="text-ocean-100/90 leading-relaxed font-story max-w-xl">
                            {storyNode.characterAnalysis}
                          </p>
                       </div>

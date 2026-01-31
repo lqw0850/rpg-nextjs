@@ -3,66 +3,89 @@ import type { Chat, Schema } from "@google/genai";
 import type { StoryNode } from "../types";
 
 const generateSystemInstruction = (ipName: string, charName: string, startNode: string, ocProfile?: string) => `
-你是一个无限流互动文字冒险游戏的“地下城主”（DM）。
-本次游戏设定的背景世界是：**${ipName}**。
-玩家扮演的角色是：**${charName}**。
+You are the Game Master for an open-ended interactive text adventure.
+The setting for this game is the world of: **${ipName}**.
+The player is controlling the character: **${charName}**.
 
 ${ocProfile ? `
-*** 注意：玩家使用的是原创角色（OC），以下是角色详细设定 ***
+*** IMPORTANT: The player is using an Original Character (OC). Here is the detailed profile ***
 ${ocProfile}
-*** 设定结束 ***
-请务必遵循上述设定来塑造角色的能力、性格和人际关系起点。
+*** End of Profile ***
+You MUST strictly adhere to this profile when defining the character's abilities, personality, and starting relationships.
 ` : `
-请基于《${ipName}》的原著设定，还原${charName}的性格、能力和人际关系。
+*** IMPORTANT: The player is controlling a canon character ***
+You MUST faithfully portray ${charName}'s personality, abilities, relationships, and motivations as established in the original work "${ipName}" at this point in the story.
 `}
 
-**重要：故事必须从以下关键情节点开始：**
+CRITICAL STARTING POINT: The story must begin at the following key plot node:
 **${startNode}**
 
-你的任务是基于《${ipName}》的世界观，生动地描述场景，并为玩家提供能够影响故事走向的选择。
+Your task is to narrate the story based on the "${ipName}" universe, providing vivid descriptions and offering choices that meaningfully influence the plot.
 
-规则：
-1. 立即根据上述“关键情节点”进行开场描写。
-2. 叙述要生动沉浸，严谨遵守原著设定的物理法则和魔法/科技规则。保持简洁（大约100-200个汉字）。
-3. 每一轮必须提供**恰好 3 个**截然不同的预设选择。
-4. 玩家也可能输入自定义的行动描述（不在预设选项中），你需要根据玩家的描述合理推进剧情。
-5. 如果选择导致悲剧结局（例如：死亡、被永久囚禁、彻底违背角色信念导致的失败），将 status 设为 'GAME_OVER'。
-6. 如果选择导致圆满结局（例如：实现了角色的终极目标、战胜了宿敌、获得了完美的归宿），将 status 设为 'VICTORY'。
-7. 如果故事继续，将 status 设为 'CONTINUE'。
-8. 保持语调与原著风格一致（例如：如果是武侠则用侠义风，科幻则用理性冷峻风）。
-9. 当游戏结束（status 不为 CONTINUE）时，**必须**在 characterAnalysis 字段中提供“灵魂映像”：分析玩家的操作是否符合角色性格，并对最终命运进行简短哲学总结（约50-100字）。
-10. 严格按照 JSON 格式输出，不要包含任何其他文本。
+CORE RULES:
+1. IMMERSIVE NARRATION: Begin the story immediately from the "key plot node". Every response must advance the plot based on the entire conversation history. Narration must be vivid, immersive, and concise (approximately 100-200 words in length, or equivalent descriptive density in English).
+2. WORLD CONSISTENCY LOCK: You are forbidden from introducing power systems, organizations, characters, or items that do not exist in the canon. All physical, magical, or technological rules must align perfectly with the original work.
+3. CHARACTER CONSISTENCY LOCK:
+   - If playing an OC, all words and actions must be constrained within the capabilities and knowledge defined in their profile.
+   - If playing a canon character, all internal monologue, dialogue, and decisions must align with the character's established personality and motives at this story point. The player may "control" their choices, but the world's reaction must follow from the character's pre-existing relationships and personality logic.
+4. OPTION DESIGN: Each turn, you must provide EXACTLY 3 distinct choice options. They should represent:
+   - Option A: An active, direct, or aggressive strategy.
+   - Option B: A cautious, observant, or indirect strategy.
+   - Option C: A unique or creative strategy that best utilizes the current character's defining traits (OC features or the canon character's core abilities).
+5. HANDLING CUSTOM ACTIONS: If the player inputs a custom action not listed in the options, you must judge its feasibility based on the world's logic and the character's abilities:
+   - If PLAUSIBLE: Integrate it seamlessly and advance the plot.
+   - If PARTIALLY PLAUSIBLE: Advance the plausible aspects, ignoring or correcting the impossible parts.
+   - If IMPOSSIBLE (e.g., casting a spell in a non-magical world): Describe why the action fails and its consequences in the narration, then provide 3 new plausible options.
+6. ENDING CONDITIONS: Determine the status for each turn:
+   - CONTINUE: The story proceeds normally.
+   - GAME_OVER: Triggered by an irreversible, story-ending negative outcome (e.g., character death, permanent imprisonment with no escape, the core goal being彻底且不可逆转地摧毁).
+   - VICTORY: Triggered by achieving a clear, definitive positive endpoint (e.g., accomplishing the player's stated core goal, defeating the archenemy and resolving the central conflict, reaching a universally recognized fulfilling conclusion).
+   - Judgments MUST be based on plot logic, not subjective feeling.
+7. NARRATIVE TONE LOCK: The prose style, vocabulary, and tone of your narration MUST closely match the writing style of the original work "${ipName}" (e.g., wuxia style for martial arts tales, gritty and rational for cyberpunk).
+8. GAME CONCLUSION: When the status is not CONTINUE, you MUST provide a "Soul Reflection" in the characterAnalysis field. This should analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
+
+OUTPUT FORMAT:
+You must output ONLY the following JSON object. No other text is permitted.
+{
+  "narration": "The narrative text for the current turn.",
+  "options": {
+    "A": "Option A text",
+    "B": "Option B text",
+    "C": "Option C text"
+  },
+  "status": "CONTINUE",
+  "characterAnalysis": ""
+}
+CRITICAL NOTE: Populate the characterAnalysis field ONLY when the status is GAME_OVER or VICTORY. Otherwise, it must be an empty string "".
 `;
 
 const responseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    narrative: {
+    narration: {
       type: Type.STRING,
-      description: "The story description for the current scene in Chinese.",
+      description: "The narrative text for the current turn.",
     },
     status: {
       type: Type.STRING,
       enum: ["CONTINUE", "GAME_OVER", "VICTORY"],
-      description: "The current state of the game based on the narrative result.",
+      description: "The current state of the game.",
     },
     characterAnalysis: {
       type: Type.STRING,
-      description: "Analysis of the player's character and fate. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
+      description: "Soul Reflection. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
     },
-    choices: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          text: { type: Type.STRING, description: "The text description of the choice in Chinese." },
-        },
-        required: ["id", "text"],
+    options: {
+      type: Type.OBJECT,
+      properties: {
+        A: { type: Type.STRING },
+        B: { type: Type.STRING },
+        C: { type: Type.STRING },
       },
+      required: ["A", "B", "C"],
     },
   },
-  required: ["narrative", "status", "choices", "characterAnalysis"],
+  required: ["narration", "status", "options", "characterAnalysis"],
 };
 
 // New Schema for strict IP validation based on new prompt
@@ -154,6 +177,23 @@ const plotNodesSchema: Schema = {
   required: ["nodes"],
 };
 
+const openingSceneSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    scene: { type: Type.STRING, description: "The scene description in English." },
+    options: {
+      type: Type.OBJECT,
+      properties: {
+        A: { type: Type.STRING, description: "Option A text in English." },
+        B: { type: Type.STRING, description: "Option B text in English." },
+        C: { type: Type.STRING, description: "Option C text in English." },
+      },
+      required: ["A", "B", "C"]
+    }
+  },
+  required: ["scene", "options"]
+};
+
 export interface IpValidationResult {
   isExist: boolean;
   author?: string;
@@ -180,6 +220,15 @@ export interface OcQuestionsResult {
   questions: string[];
 }
 
+interface OpeningSceneResult {
+  scene: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+  };
+}
+
 export class GameService {
   private ai: GoogleGenAI;
   private chat: Chat | null = null;
@@ -198,10 +247,18 @@ export class GameService {
     for (let i = 0; i < retries; i++) {
       try {
         return await operation();
-      } catch (e) {
+      } catch (e: any) {
         console.warn(`Attempt ${i + 1} failed:`, e);
+        
+        // Check for 429/Resource Exhausted
+        const isRateLimit = e.status === 'RESOURCE_EXHAUSTED' || e.code === 429 || (e.message && e.message.includes('429'));
+
         if (i === retries - 1) throw e;
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+        
+        // If it's a rate limit error, wait significantly longer (e.g., 4s, 8s...) to allow quota refill
+        const delay = isRateLimit ? 4000 * (i + 1) : 1000 * Math.pow(2, i);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     throw new Error("Operation failed after retries");
@@ -288,31 +345,11 @@ Science Fiction
 Use the work's core setting, themes, and its classification in authoritative sources as the basis.
 
 OUTPUT FORMAT
-Output ONLY valid JSON, with no additional text.
+You must strictly follow the provided JSON schema.
+If the work is verified (isExist=true), populate all fields (author, originalLanguage, abstract, category) based on authoritative sources.
+If not verified, set isExist=false.
 
-If isExist is true:
-{
-"isExist": true,
-"author": "[Author name as in canonical sources]",
-"originalLanguage": "[Standard language name, e.g., English, Chinese]",
-"abstract": "[Factual English summary under 200 words from canonical description]",
-"category": "[One category from the list]"
-}
-
-If isExist is false:
-{
-"isExist": false
-}
-
-FINAL AND STRICT GUARDRAILS
-
-AUTHORITY OVERRIDE: Information from Tier 1 sources (e.g., Wikipedia, official site) always overrides information from lower-tier sources in case of conflict.
-
-CROSS-SOURCE VERIFICATION: Core metadata (especially author) requires confirmation from multiple independent reliable sources when possible. Single-source claims need higher scrutiny.
-
-NO HALLUCINATION: If any verification step fails, the default and only action is to set isExist to false. Never guess or invent.
-
-DETERMINISM: Identical queries must follow the same logic path and source hierarchy, yielding identical results.
+Do not include any markdown formatting.
     `;
 
     return this.retryOperation(async () => {
@@ -533,11 +570,147 @@ CRITICAL CONSTRAINTS:
     });
   }
 
+  private async generateOpeningNode(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<OpeningSceneResult> {
+  const isOc = !!ocProfile;
+  let prompt = "";
+
+  if (!isOc) {
+    // Canon Prompt
+    prompt = `
+You are a "Canon Character Fate Re-enactor". When a user specifies a canon character and their key decision node, your task is to simulate the "critical moment" at that node and present three different choices the character could make based on their personality and situation.
+
+INPUT DATA
+The user provides input in the format: Character Name: Key Node Description
+Data: ${charName}: ${startNode}
+
+CORE RULES
+1. Scene Restoration: Accurately depict the specific environment, the character's immediate psychology, known information, and the pressures they face at the precise moment before the canonical decision occurs.
+2. Option Generation Logic: You must provide three options representing three different courses of action:
+   - Option A. The Canon Path: The choice the character actually made in the original work.
+   - Option B. The Character Path: An alternative course of action that differs in specifics but remains consistent with the character's core personality traits (e.g., caution, pride, loyalty).
+   - Option C. The Reversal Path: A radical choice that seems like a deviation on the surface but could still originate from a deep-seated core obsession or motive of the character.
+3. Option Description: Each option should describe only the specific, actionable step the character is about to take at that instant. Do not add analysis of motivation or risk.
+4. LANGUAGE: The output "scene" and "options" text MUST be in ENGLISH.
+
+OUTPUT FORMAT
+Output ONLY the following JSON object. No other text.
+{
+  "scene": "Approximately 200-word description of the 'critical moment' scene.",
+  "options": {
+    "A": "Description of the Canon Path choice.",
+    "B": "Description of the Character Path choice.",
+    "C": "Description of the Reversal Path choice."
+  }
+}
+
+ABSOLUTE CONSTRAINTS
+- Character-Driven: All options must be strictly derived from the character's known personality, capabilities, and motives at that point in time. Do not introduce information or awareness they could not possibly have.
+- Action-Focused: Options must describe only the concrete, actionable step the character is about to take. No explanatory text.
+- No Omniscience: Do not generate options based on knowledge of future events that the character cannot know.
+      `;
+    } else {
+      // OC Prompt
+      prompt = `
+You are a "Fate Intervention" narrative engine. Your sole purpose is to place the user's Original Character (OC) at the scene moments before a canonical character makes a tragic key decision, and to provide options to attempt to alter that fate.
+
+INPUT DATA FORMAT
+- target_node: ${startNode}
+- OC_profile: ${ocProfile}
+
+CORE EXECUTION RULES
+You must follow these steps strictly:
+
+1.  DEDUCE THE INTERVENTION LOGIC
+    Based solely on the OC_profile, you must deduce the ONE plausible reason for the OC's presence. Follow this hierarchy:
+    - If the OC's Core Relationship is directly to the target character, the reason is a direct encounter based on that relationship.
+    - If the OC's Identity or Affiliation is logically linked to the event, the reason is arriving while performing relevant duties.
+    - If neither applies, the reason is a strange twist of fate or temporal anomaly.
+
+2.  CONSTRUCT THE "FINAL SECOND" SCENE
+    Generate a 200-300 word, tense scene. It MUST include:
+    - Canonical Freeze-Frame: An exact description of the target character's state and action immediately before the decision is finalized.
+    - OC's Entry: The OC's arrival, executed according to the logic from Step 1.
+    - Immediate Crisis: A clear statement that the decision is literally about to happen in the next second.
+
+3.  DESIGN THE "INTERVENTION OPTIONS"
+    Provide three options starting with "You decide to...". Each must leverage a DIFFERENT part of the OC_profile:
+    - Option A: An action primarily driven by the OC's Identity or Affiliation.
+    - Option B: An action primarily based on the OC's Core Relationship to the target character.
+    - Option C: An action primarily using the OC's unique Special Ability/Item.
+    - Each option MUST be followed by a clear, short-term risk in parentheses.
+    
+4. LANGUAGE: The output "scene" and "options" text MUST be in ENGLISH.
+
+OUTPUT FORMAT
+Output ONLY the following JSON object, with no other text.
+{
+  "scene": "The 200-300 word 'final second' scene text here.",
+  "options": {
+    "A": "You decide to...",
+    "B": "You decide to...",
+    "C": "You decide to..."
+  }
+}
+
+ABSOLUTE CONSTRAINTS
+- Temporal Lock: The scene must end the literal moment before the canonical decision is physically or verbally completed.
+- Logic Lock: The OC's arrival must be a strict, reasoned deduction from the OC_profile.
+- Option Clarity: Each option must be a clear, actionable statement beginning with "You decide to...".
+      `;
+    }
+
+    return this.retryOperation(async () => {
+      const response = await this.ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: openingSceneSchema,
+        }
+      });
+      return JSON.parse(response.text!) as OpeningSceneResult;
+    });
+  }
+
   public async startGame(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<StoryNode> {
     this.currentIp = ipName;
     return this.retryOperation(async () => {
-      const chatSession = this.ai.chats.create({
+      // 1. Generate the initial scene and choices using specific prompt
+      const opening = await this.generateOpeningNode(ipName, charName, startNode, ocProfile);
+
+      // 2. Construct the StoryNode (Legacy format for App)
+      const initialStoryNode: StoryNode = {
+        narrative: opening.scene,
+        choices: [
+          { id: 'A', text: opening.options.A },
+          { id: 'B', text: opening.options.B },
+          { id: 'C', text: opening.options.C },
+        ],
+        status: 'CONTINUE',
+        characterAnalysis: ''
+      };
+
+      // Construct the initial response in the NEW format for the history
+      const initialModelTurn = {
+        narration: opening.scene,
+        options: opening.options, // { A:..., B:..., C:... }
+        status: 'CONTINUE',
+        characterAnalysis: ''
+      };
+
+      // 3. Initialize the Main Chat Session with primed history using new format
+      this.chat = this.ai.chats.create({
         model: "gemini-3-flash-preview",
+        history: [
+          {
+            role: 'user',
+            parts: [{ text: `开始故事。背景是《${ipName}》，我是${charName}。我们从这个节点开始：${startNode}。` }]
+          },
+          {
+            role: 'model',
+            parts: [{ text: JSON.stringify(initialModelTurn) }]
+          }
+        ],
         config: {
           systemInstruction: generateSystemInstruction(ipName, charName, startNode, ocProfile),
           responseMimeType: "application/json",
@@ -545,13 +718,7 @@ CRITICAL CONSTRAINTS:
         },
       });
       
-      this.chat = chatSession;
-
-      const result = await chatSession.sendMessage({
-        message: `开始故事。背景是《${ipName}》，我是${charName}。我们从这个节点开始：${startNode}。请描述开场。`,
-      });
-
-      return JSON.parse(result.text!) as StoryNode;
+      return initialStoryNode;
     });
   }
 
@@ -560,7 +727,21 @@ CRITICAL CONSTRAINTS:
     const chatSession = this.chat;
     return this.retryOperation(async () => {
       const result = await chatSession.sendMessage({ message: `玩家采取行动: ${choiceText}` });
-      return JSON.parse(result.text!) as StoryNode;
+      const rawResponse = JSON.parse(result.text!);
+      
+      // Map new response format to StoryNode format for frontend
+      const storyNode: StoryNode = {
+        narrative: rawResponse.narration,
+        choices: [
+          { id: 'A', text: rawResponse.options.A },
+          { id: 'B', text: rawResponse.options.B },
+          { id: 'C', text: rawResponse.options.C },
+        ],
+        status: rawResponse.status,
+        characterAnalysis: rawResponse.characterAnalysis
+      };
+      
+      return storyNode;
     });
   }
 
