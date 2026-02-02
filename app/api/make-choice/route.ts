@@ -3,14 +3,14 @@ import { getGameService } from '../../../lib/gameService';
 
 export async function POST(request: NextRequest) {
   try {
-    const { choiceText } = await request.json();
+    const { sessionId, choiceText } = await request.json();
     
-    if (!choiceText || typeof choiceText !== 'string') {
-      return NextResponse.json({ error: 'Invalid choice text' }, { status: 400 });
+    if (!sessionId || !choiceText || typeof sessionId !== 'string' || typeof choiceText !== 'string') {
+      return NextResponse.json({ error: 'Invalid session ID or choice text' }, { status: 400 });
     }
     
     const gameService = getGameService();
-    const nextNode = await gameService.makeChoice(choiceText);
+    const nextNode = await gameService.makeChoice(sessionId, choiceText);
     
     return NextResponse.json(nextNode);
   } catch (error) {

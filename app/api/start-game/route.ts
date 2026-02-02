@@ -10,9 +10,9 @@ export async function POST(request: NextRequest) {
     }
     
     const gameService = getGameService();
-    const initialNode = await gameService.startGame(ipName, characterName, startNode, finalOcProfile);
+    const { sessionId, storyNode } = await gameService.startGame(ipName, characterName, startNode, finalOcProfile);
     
-    return NextResponse.json(initialNode);
+    return NextResponse.json({ sessionId, ...storyNode });
   } catch (error) {
     console.error('Error starting game:', error);
     return NextResponse.json({ error: 'Failed to start game' }, { status: 500 });

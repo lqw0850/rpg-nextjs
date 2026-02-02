@@ -31,6 +31,10 @@ export default function Home() {
   const [sceneImage, setSceneImage] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
   const [customInput, setCustomInput] = useState('');
+  const [sessionId, setSessionId] = useState<string>(() => {
+    // 从localStorage加载sessionId，防止页面刷新时丢失
+    return typeof window !== 'undefined' ? localStorage.getItem('gameSessionId') || '' : '';
+  });
   
   // Setup State
   const [setupStep, setSetupStep] = useState<SetupStep>('SELECT_IP');
@@ -123,7 +127,13 @@ export default function Home() {
           finalOcProfile 
         }),
       });
-      const initialNode = await response.json();
+      const data = await response.json();
+      const { sessionId: newSessionId, ...initialNode } = data;
+      setSessionId(newSessionId);
+      // 存储 sessionId 到 localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gameSessionId', newSessionId);
+      }
       setStoryNode(initialNode);
       setStatus(GameStatus.PLAYING);
       setShowChoices(false);
@@ -329,7 +339,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ choiceText: text }),
+        body: JSON.stringify({ sessionId, choiceText: text }),
       });
       const nextNode = await response.json();
       setStoryNode(nextNode);
@@ -358,6 +368,11 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     setStatus(GameStatus.IDLE);
     setSetupStep('SELECT_IP');
     setCustomInput('');
+    setSessionId('');
+    // 清除 localStorage 中的 sessionId
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('gameSessionId');
+    }
     setIpSummary('');
     setIpAuthor('');
     setIpCategory('');
@@ -376,7 +391,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
 
   useEffect(() => {
     let isMounted = true;
-    if (storyNode?.narrative) {
+    if (storyNode?.narrative && sessionId) {
       setLoadingImage(true);
       fetch('/api/generate-image', {
         method: 'POST',
@@ -384,6 +399,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
+          sessionId,
           narrative: storyNode.narrative,
           isOcPortrait: false,
           ocVisualDescription: ocVisualDesc
@@ -404,7 +420,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
       });
     }
     return () => { isMounted = false; };
-  }, [storyNode, ocVisualDesc]);
+  }, [storyNode, ocVisualDesc, sessionId]);
 
   useEffect(() => {
     if (bottomRef.current) {

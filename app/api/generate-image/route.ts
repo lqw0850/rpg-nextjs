@@ -3,14 +3,14 @@ import { getGameService } from '../../../lib/gameService';
 
 export async function POST(request: NextRequest) {
   try {
-    const { narrative, isOcPortrait, ocVisualDescription } = await request.json();
+    const { sessionId, narrative, isOcPortrait, ocVisualDescription } = await request.json();
     
-    if (!narrative || typeof narrative !== 'string') {
-      return NextResponse.json({ error: 'Invalid narrative' }, { status: 400 });
+    if (!sessionId || !narrative || typeof sessionId !== 'string' || typeof narrative !== 'string') {
+      return NextResponse.json({ error: 'Invalid session ID or narrative' }, { status: 400 });
     }
     
     const gameService = getGameService();
-    const image = await gameService.generateImage(narrative, isOcPortrait || false, ocVisualDescription);
+    const image = await gameService.generateImage(sessionId, narrative, isOcPortrait || false, ocVisualDescription);
     
     return NextResponse.json(image);
   } catch (error) {

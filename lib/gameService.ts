@@ -23,26 +23,56 @@ CRITICAL STARTING POINT: The story must begin at the following key plot node:
 Your task is to narrate the story based on the "${ipName}" universe, providing vivid descriptions and offering choices that meaningfully influence the plot.
 
 CORE RULES:
-1. IMMERSIVE NARRATION: Begin the story immediately from the "key plot node". Every response must advance the plot based on the entire conversation history. Narration must be vivid, immersive, and concise (approximately 100-200 words in length, or equivalent descriptive density in English).
-2. WORLD CONSISTENCY LOCK: You are forbidden from introducing power systems, organizations, characters, or items that do not exist in the canon. All physical, magical, or technological rules must align perfectly with the original work.
-3. CHARACTER CONSISTENCY LOCK:
-   - If playing an OC, all words and actions must be constrained within the capabilities and knowledge defined in their profile.
-   - If playing a canon character, all internal monologue, dialogue, and decisions must align with the character's established personality and motives at this story point. The player may "control" their choices, but the world's reaction must follow from the character's pre-existing relationships and personality logic.
-4. OPTION DESIGN: Each turn, you must provide EXACTLY 3 distinct choice options. They should represent:
-   - Option A: An active, direct, or aggressive strategy.
-   - Option B: A cautious, observant, or indirect strategy.
-   - Option C: A unique or creative strategy that best utilizes the current character's defining traits (OC features or the canon character's core abilities).
-5. HANDLING CUSTOM ACTIONS: If the player inputs a custom action not listed in the options, you must judge its feasibility based on the world's logic and the character's abilities:
-   - If PLAUSIBLE: Integrate it seamlessly and advance the plot.
-   - If PARTIALLY PLAUSIBLE: Advance the plausible aspects, ignoring or correcting the impossible parts.
-   - If IMPOSSIBLE (e.g., casting a spell in a non-magical world): Describe why the action fails and its consequences in the narration, then provide 3 new plausible options.
-6. ENDING CONDITIONS: Determine the status for each turn:
-   - CONTINUE: The story proceeds normally.
-   - GAME_OVER: Triggered by an irreversible, story-ending negative outcome (e.g., character death, permanent imprisonment with no escape, the core goal being彻底且不可逆转地摧毁).
-   - VICTORY: Triggered by achieving a clear, definitive positive endpoint (e.g., accomplishing the player's stated core goal, defeating the archenemy and resolving the central conflict, reaching a universally recognized fulfilling conclusion).
-   - Judgments MUST be based on plot logic, not subjective feeling.
-7. NARRATIVE TONE LOCK: The prose style, vocabulary, and tone of your narration MUST closely match the writing style of the original work "${ipName}" (e.g., wuxia style for martial arts tales, gritty and rational for cyberpunk).
-8. GAME CONCLUSION: When the status is not CONTINUE, you MUST provide a "Soul Reflection" in the characterAnalysis field. This should analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
+
+IMMERSIVE NARRATION: Begin the story immediately from the "key plot node". Every response must advance the plot based on the entire conversation history. Narration must be vivid, immersive, and concise (approximately 100-200 Chinese characters in length, or equivalent descriptive density in English).
+
+WORLD CONSISTENCY LOCK: You are forbidden from introducing power systems, organizations, characters, or items that do not exist in the canon. All physical, magical, or technological rules must align perfectly with the original work.
+
+CHARACTER CONSISTENCY LOCK:
+
+If playing an OC, all words and actions must be constrained within the capabilities and knowledge defined in their profile.
+
+If playing a canon character, all internal monologue, dialogue, and decisions must align with the character's established personality and motives at this story point. The player may "control" their choices, but the world's reaction must follow from the character's pre-existing relationships and personality logic.
+
+NARRATIVE PACING & STRUCTURE: This is a focused story intended to conclude in roughly 20 turns. You are responsible for managing the pacing to create a satisfying narrative arc. Use the following as a guide:
+
+Turns 1-7 (Setup & Rising Tension): Introduce the core conflict and key characters. Establish relationships, gather resources, and face initial challenges that prepare for the main crisis.
+
+Turns 8-15 (Confrontation & Crisis): The central conflict intensifies. Escalate stakes, force difficult choices, and move the story toward its climax. Options should have higher consequences.
+
+Turns 16-20 (Climax & Resolution): Drive the story toward its decisive moment. Options should push toward a final resolution. Be prepared to guide the narrative to a conclusive ending (VICTORY or GAME_OVER) within this window.
+
+OPTION DESIGN: Each turn, you must provide EXACTLY 3 distinct choice options. They should represent:
+
+Option A: An active, direct, or aggressive strategy.
+
+Option B: A cautious, observant, or indirect strategy.
+
+Option C: A unique or creative strategy that best utilizes the current character's defining traits (OC features or the canon character's core abilities).
+
+HANDLING CUSTOM ACTIONS: If the player inputs a custom action not listed in the options, you must judge its feasibility based on the world's logic and the character's abilities:
+
+If PLAUSIBLE: Integrate it seamlessly and advance the plot.
+
+If PARTIALLY PLAUSIBLE: Advance the plausible aspects, ignoring or correcting the impossible parts.
+
+If IMPOSSIBLE (e.g., casting a spell in a non-magical world): Describe why the action fails and its consequences in the narration, then provide 3 new plausible options.
+
+ENDING CONDITIONS: Determine the status for each turn:
+
+CONTINUE: The story proceeds normally.
+
+GAME_OVER: Triggered by an irreversible, story-ending negative outcome (e.g., character death, permanent imprisonment with no escape, the core goal being destroyed).
+
+VICTORY: Triggered by achieving a clear, definitive positive endpoint (e.g., accomplishing the player's stated core goal, defeating the archenemy and resolving the central conflict, reaching a universally recognized fulfilling conclusion).
+
+Judgments MUST be based on plot logic, not subjective feeling.
+
+Pacing Note: Be especially mindful of these conditions during Turns 16-20, actively steering the narrative toward a fitting conclusion.
+
+NARRATIVE TONE LOCK: The prose style, vocabulary, and tone of your narration MUST closely match the writing style of the original work "${ipName}" (e.g., wuxia style for martial arts tales, gritty and rational for cyberpunk).
+
+GAME CONCLUSION: When the status is not CONTINUE, you MUST provide a "Soul Reflection" in the characterAnalysis field. This should analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
 
 OUTPUT FORMAT:
 You must output ONLY the following JSON object. No other text is permitted.
@@ -220,6 +250,13 @@ export interface OcQuestionsResult {
   questions: string[];
 }
 
+export interface GameSession {
+  id: string;
+  chat: Chat;
+  ipName: string;
+  ocVisualDescription: string;
+}
+
 interface OpeningSceneResult {
   scene: string;
   options: {
@@ -231,16 +268,15 @@ interface OpeningSceneResult {
 
 export class GameService {
   private ai: GoogleGenAI;
-  private chat: Chat | null = null;
-  private currentIp: string = "";
-  private ocVisualDescription: string = "";
+  private sessions: Map<string, GameSession>;
 
-  constructor() {
+  constructor(sessionStore?: Map<string, GameSession>) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY is not set");
     }
     this.ai = new GoogleGenAI({ apiKey });
+    this.sessions = sessionStore || new Map();
   }
 
   private async retryOperation<T>(operation: () => Promise<T>, retries = 3): Promise<T> {
@@ -265,8 +301,11 @@ export class GameService {
   }
 
   // Set the visual description for the OC to be used in future image generations
-  public setOcVisualDescription(desc: string) {
-    this.ocVisualDescription = desc;
+  public setOcVisualDescription(sessionId: string, desc: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.ocVisualDescription = desc;
+    }
   }
 
   public async validateIp(ipName: string): Promise<IpValidationResult> {
@@ -668,12 +707,14 @@ ABSOLUTE CONSTRAINTS
           responseSchema: openingSceneSchema,
         }
       });
-      return JSON.parse(response.text!) as OpeningSceneResult;
+      if (!response.text || response.text === "undefined") {
+        throw new Error("Invalid API response");
+      }
+      return JSON.parse(response.text);
     });
   }
 
-  public async startGame(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<StoryNode> {
-    this.currentIp = ipName;
+  public async startGame(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<{ sessionId: string; storyNode: StoryNode }> {
     return this.retryOperation(async () => {
       // 1. Generate the initial scene and choices using specific prompt
       const opening = await this.generateOpeningNode(ipName, charName, startNode, ocProfile);
@@ -698,8 +739,11 @@ ABSOLUTE CONSTRAINTS
         characterAnalysis: ''
       };
 
-      // 3. Initialize the Main Chat Session with primed history using new format
-      this.chat = this.ai.chats.create({
+      // 3. Generate session ID
+      const sessionId = crypto.randomUUID();
+
+      // 4. Initialize the Main Chat Session with primed history using new format
+      const chat = this.ai.chats.create({
         model: "gemini-3-flash-preview",
         history: [
           {
@@ -718,13 +762,22 @@ ABSOLUTE CONSTRAINTS
         },
       });
       
-      return initialStoryNode;
+      // 5. Store session
+      this.sessions.set(sessionId, {
+        id: sessionId,
+        chat,
+        ipName,
+        ocVisualDescription: ''
+      });
+
+      return { sessionId, storyNode: initialStoryNode };
     });
   }
 
-  public async makeChoice(choiceText: string): Promise<StoryNode> {
-    if (!this.chat) throw new Error("Game session not initialized.");
-    const chatSession = this.chat;
+  public async makeChoice(sessionId: string, choiceText: string): Promise<StoryNode> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("Game session not found.");
+    const chatSession = session.chat;
     return this.retryOperation(async () => {
       const result = await chatSession.sendMessage({ message: `玩家采取行动: ${choiceText}` });
       const rawResponse = JSON.parse(result.text!);
@@ -745,13 +798,16 @@ ABSOLUTE CONSTRAINTS
     });
   }
 
-  public async generateImage(narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string): Promise<string | null> {
+  public async generateImage(sessionId: string, narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string): Promise<string | null> {
     try {
-      const context = this.currentIp ? `Style consistent with the world of ${this.currentIp}.` : "Fantasy style.";
+      const session = this.sessions.get(sessionId);
+      if (!session) throw new Error("Game session not found.");
+      
+      const context = session.ipName ? `Style consistent with the world of ${session.ipName}.` : "Fantasy style.";
       
       // If we have an OC description, include it in the prompt
       let characterContext = "";
-      const visualDesc = ocVisualDescription || this.ocVisualDescription;
+      const visualDesc = ocVisualDescription || session.ocVisualDescription;
       if (visualDesc) {
         characterContext = `The MAIN CHARACTER in the image MUST look like this: ${visualDesc}.`;
       }
@@ -790,12 +846,21 @@ ABSOLUTE CONSTRAINTS
   }
 }
 
-// 导出单例实例
-let gameServiceInstance: GameService | null = null;
+// 使用 Node.js 的 global 对象存储全局会话，防止热重载时丢失会话
+declare global {
+  var __gameSessions: Map<string, GameSession>;
+  var __gameServiceInstance: GameService | null;
+}
 
+// 初始化全局会话存储
+if (!global.__gameSessions) {
+  global.__gameSessions = new Map<string, GameSession>();
+}
+
+// 导出单例实例
 export const getGameService = (): GameService => {
-  if (!gameServiceInstance) {
-    gameServiceInstance = new GameService();
+  if (!global.__gameServiceInstance) {
+    global.__gameServiceInstance = new GameService(global.__gameSessions);
   }
-  return gameServiceInstance;
+  return global.__gameServiceInstance;
 };
