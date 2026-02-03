@@ -3,9 +3,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { GameStatus, type StoryNode, type Choice } from '../types';
-import { Waves, Sparkles, Crown, Anchor, Image as ImageIcon, Send, ScrollText, BookOpen, User, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, UserPlus, FileQuestion, Feather, Tag, RefreshCw, Camera, Globe, MapPin, PenTool } from 'lucide-react';
+import { Waves, Sparkles, Crown, Anchor, Image as ImageIcon, Send, ScrollText, BookOpen, User, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, UserPlus, FileQuestion, Feather, Tag, RefreshCw, Camera, Globe, MapPin, PenTool, LogOut } from 'lucide-react';
 import { Button } from '../components/Button';
 import { NarrativeDisplay } from '../components/NarrativeDisplay';
+import { useSupabase } from '../lib/supabase/supabaseProvider';
+import { supabase } from '../lib/supabase/supabaseClient';
+import { useRouter } from 'next/navigation';
 
 type SetupStep = 'SELECT_IP' | 'SELECT_CHARACTER' | 'SELECT_START_NODE';
 type CharacterMode = 'CANON' | 'OC';
@@ -24,6 +27,9 @@ const CATEGORY_MAP: Record<string, string> = {
 };
 
 export default function Home() {
+  const { user, loading: authLoading } = useSupabase();
+  const router = useRouter();
+  
   const [status, setStatus] = useState<GameStatus>(GameStatus.IDLE);
   const [storyNode, setStoryNode] = useState<StoryNode | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,6 +41,7 @@ export default function Home() {
     // 从localStorage加载sessionId，防止页面刷新时丢失
     return typeof window !== 'undefined' ? localStorage.getItem('gameSessionId') || '' : '';
   });
+  const [gameRecordId, setGameRecordId] = useState<number | null>(null);
   
   // Setup State
   const [setupStep, setSetupStep] = useState<SetupStep>('SELECT_IP');
@@ -63,6 +70,23 @@ export default function Home() {
   const [customStartNode, setCustomStartNode] = useState('');
 
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // 检查用户登录状态
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      // 清除游戏会话
+      handleRestart();
+    } catch (error) {
+      console.error('退出登录失败:', error);
+    }
+  };
 
   const handleVerifyIp = async () => {
     if (!ipName.trim()) return;
@@ -111,6 +135,11 @@ export default function Home() {
 
   const handleStartGame = async (startNode: string) => {
     if (!startNode.trim()) return;
+    if (!user) {
+      alert('请先登录后再开始游戏');
+      router.push('/login');
+      return;
+    }
     setLoading(true);
     setSceneImage(null);
     setCustomInput('');
@@ -124,12 +153,14 @@ export default function Home() {
           ipName, 
           characterName, 
           startNode, 
+          isOc: charMode === 'OC',
           finalOcProfile 
         }),
       });
       const data = await response.json();
-      const { sessionId: newSessionId, ...initialNode } = data;
+      const { sessionId: newSessionId, gameRecordId: newGameRecordId, ...initialNode } = data;
       setSessionId(newSessionId);
+      setGameRecordId(newGameRecordId);
       // 存储 sessionId 到 localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('gameSessionId', newSessionId);
@@ -346,8 +377,36 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
       
       if (nextNode.status === 'GAME_OVER') {
         setStatus(GameStatus.GAME_OVER);
+        // 更新游戏状态为未通关
+        if (gameRecordId) {
+          await fetch('/api/update-game-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              gameRecordId, 
+              status: 2, // 2: 未通关
+              characterSummary: nextNode.characterAnalysis
+            }),
+          });
+        }
       } else if (nextNode.status === 'VICTORY') {
         setStatus(GameStatus.VICTORY);
+        // 更新游戏状态为已通关
+        if (gameRecordId) {
+          await fetch('/api/update-game-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              gameRecordId, 
+              status: 1, // 1: 已通关
+              characterSummary: nextNode.characterAnalysis
+            }),
+          });
+        }
       }
     } catch (error) {
       console.error("Error making choice", error);
@@ -369,6 +428,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     setSetupStep('SELECT_IP');
     setCustomInput('');
     setSessionId('');
+    setGameRecordId(null);
     // 清除 localStorage 中的 sessionId
     if (typeof window !== 'undefined') {
       localStorage.removeItem('gameSessionId');
@@ -434,6 +494,31 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
     if (status === GameStatus.IDLE) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-float px-4">
+          {/* 用户登录状态 */}
+          <div className="absolute top-4 right-4 flex items-center gap-3">
+            {user ? (
+              <div className="flex items-center gap-2 bg-ocean-900/60 px-4 py-2 rounded-full border border-ocean-700/50">
+                <User size={18} className="text-ocean-400" />
+                <span className="text-ocean-100 text-sm font-serif">{user.email?.split('@')[0]}</span>
+                <Button 
+                  onClick={handleLogout} 
+                  variant="secondary" 
+                  className="px-3 py-1 text-xs"
+                >
+                  <LogOut size={14} />
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                onClick={() => router.push('/login')} 
+                className="px-4 py-2 text-sm"
+              >
+                <User size={16} className="mr-2" />
+                登录
+              </Button>
+            )}
+          </div>
+          
           <div className="relative">
             <div className="absolute -inset-4 bg-ocean-400/20 rounded-full blur-xl animate-pulse-slow"></div>
             <BookOpen size={80} className="text-ocean-100 relative z-10" />

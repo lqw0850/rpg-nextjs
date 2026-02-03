@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { questionsSchema, visualPromptSchema, plotNodesSchema } from "./schemas";
 import type { OcQuestionsResult } from "./types";
+import { databaseService } from "./databaseService";
 
 export class OcGenerator {
   private ai: GoogleGenAI;
@@ -10,6 +11,13 @@ export class OcGenerator {
   }
 
   public async generateOcQuestions(ipName: string, charName: string, concept: string): Promise<string[]> {
+    // 先查询数据库
+    const existingIpInfo = await databaseService.findIpInfo(ipName);
+    if (existingIpInfo && existingIpInfo.oc_questionnaire) {
+      return existingIpInfo.oc_questionnaire;
+    }
+
+    // 数据库中不存在，调用AI生成
     const prompt = `
 You are a professional Original Character (OC) questionnaire generator. Your task is to generate a list of questions for collecting OC information based on a user-specified fictional world or setting.
 
@@ -63,6 +71,10 @@ Input: "${ipName}"
       }
     });
     const result = JSON.parse(response.text!) as OcQuestionsResult;
+
+    // 将生成的问卷存入数据库
+    await databaseService.updateOcQuestionnaire(ipName, result.questions);
+
     return result.questions;
   }
 

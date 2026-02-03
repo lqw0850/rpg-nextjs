@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { ipValidationSchema, characterValidationSchema } from "./schemas";
 import type { IpValidationResult, CharacterValidationResult } from "./types";
+import { databaseService } from "./databaseService";
 
 export class Validators {
   private ai: GoogleGenAI;
@@ -10,6 +11,19 @@ export class Validators {
   }
 
   public async validateIp(ipName: string): Promise<IpValidationResult> {
+    // 先查询数据库
+    const existingIpInfo = await databaseService.findIpInfo(ipName);
+    if (existingIpInfo) {
+      return {
+        isExist: true,
+        author: existingIpInfo.author,
+        originalLanguage: existingIpInfo.language,
+        abstract: existingIpInfo.description,
+        category: existingIpInfo.type
+      };
+    }
+
+    // 数据库中不存在，调用AI验证
     const prompt = `
 You are a professional global literary and media works database query API. Execute the following workflow sequentially and strictly.
 
@@ -120,7 +134,15 @@ DETERMINISM: Identical queries must follow the same logic path and source hierar
         responseSchema: ipValidationSchema,
       }
     });
-    return JSON.parse(response.text!) as IpValidationResult;
+
+    const result = JSON.parse(response.text!) as IpValidationResult;
+
+    // 如果AI判断存在，将结果存入数据库
+    if (result.isExist) {
+      await databaseService.saveIpInfo(ipName, result);
+    }
+
+    return result;
   }
 
   public async validateCharacter(ipName: string, charName: string): Promise<CharacterValidationResult> {

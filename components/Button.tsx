@@ -2,20 +2,22 @@ import React from 'react';
 
 interface ButtonProps {
   children: React.ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
   variant?: 'primary' | 'secondary';
   className?: string;
   isLoading?: boolean;
   disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
 }
 
 export const Button: React.FC<ButtonProps> = ({
   children,
-  onClick,
+  onClick = () => {},
   variant = 'primary',
   className = '',
   isLoading = false,
   disabled = false,
+  type = 'button',
 }) => {
   const baseClasses = 'px-6 py-3 rounded-lg font-serif transition-all flex items-center justify-center';
   const variantClasses = {
@@ -25,6 +27,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={isLoading || disabled}
       className={`

@@ -6,6 +6,7 @@ import { ImageGenerator } from "./imageGenerator";
 import { OcGenerator } from "./ocGenerator";
 import { getGlobalSessions, createSession, getSession, updateSessionActivity, deleteSession, cleanupExpiredSessions } from "./sessionManager";
 import type { GameSession } from "./types";
+import { databaseService } from "./databaseService";
 
 export class GameService {
   private validators: Validators;
@@ -96,11 +97,27 @@ export class GameService {
     });
   }
 
-  public async startGame(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<{ sessionId: string; storyNode: StoryNode }> {
+  public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number }> {
     return this.retryOperation(async () => {
-      return await this.gameEngine.startGame(ipName, charName, startNode, (sessionId, chat) => {
+      // 创建游戏记录
+      const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile);
+      if (!gameRecord) {
+        throw new Error("创建游戏记录失败");
+      }
+
+      const result = await this.gameEngine.startGame(ipName, charName, startNode, (sessionId, chat) => {
         createSession(sessionId, chat, ipName);
+        // 将游戏记录ID存储在会话中
+        const session = getSession(sessionId);
+        if (session) {
+          (session as any).gameRecordId = gameRecord.id;
+        }
       }, ocProfile);
+
+      return {
+        ...result,
+        gameRecordId: gameRecord.id
+      };
     });
   }
 
@@ -110,7 +127,25 @@ export class GameService {
       if (!session) throw new Error("Game session not found.");
       
       updateSessionActivity(sessionId);
-      return await this.gameEngine.makeChoice(session, choiceText);
+      const storyNode = await this.gameEngine.makeChoice(session, choiceText);
+
+      // 记录游戏轮次信息
+      const gameRecordId = (session as any).gameRecordId;
+      if (gameRecordId) {
+        // 获取当前轮次编号
+        const rounds = await databaseService.getGameRounds(gameRecordId);
+        const roundNumber = rounds.length + 1;
+
+        await databaseService.saveGameRound(
+          gameRecordId,
+          roundNumber,
+          storyNode.narrative,
+          storyNode.choices,
+          choiceText
+        );
+      }
+
+      return storyNode;
     });
   }
 
@@ -129,6 +164,36 @@ export class GameService {
       console.error("Failed to generate image:", error);
       return null;
     }
+  }
+
+  /**
+   * 更新游戏记录状态
+   * @param gameRecordId 游戏记录ID
+   * @param status 状态 (0: 任务进行中, 1: 已通关, 2: 未通关)
+   * @param characterSummary 角色总结
+   * @returns 更新结果
+   */
+  public async updateGameStatus(gameRecordId: number, status: number, characterSummary?: string): Promise<boolean> {
+    const result = await databaseService.updateGameRecordStatus(gameRecordId, status, characterSummary);
+    return result !== null;
+  }
+
+  /**
+   * 获取用户游戏记录
+   * @param userId 用户ID
+   * @returns 游戏记录列表
+   */
+  public async getUserGameRecords(userId: string) {
+    return await databaseService.getUserGameRecords(userId);
+  }
+
+  /**
+   * 获取游戏轮次记录
+   * @param gameRecordId 游戏记录ID
+   * @returns 轮次记录列表
+   */
+  public async getGameRounds(gameRecordId: number) {
+    return await databaseService.getGameRounds(gameRecordId);
   }
 }
 
