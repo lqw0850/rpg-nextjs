@@ -99,7 +99,8 @@ export class GameService {
 
   public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number }> {
     return this.retryOperation(async () => {
-      // 创建游戏记录
+      await databaseService.updateAllIncompleteGameRecords(userId, 2);
+
       const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile);
       if (!gameRecord) {
         throw new Error("创建游戏记录失败");
@@ -107,12 +108,26 @@ export class GameService {
 
       const result = await this.gameEngine.startGame(ipName, charName, startNode, (sessionId, chat) => {
         createSession(sessionId, chat, ipName);
-        // 将游戏记录ID存储在会话中
         const session = getSession(sessionId);
         if (session) {
           (session as any).gameRecordId = gameRecord.id;
         }
       }, ocProfile);
+
+      // 创建第一个轮次记录（在 startGame 完成后）
+      const session = getSession(result.sessionId);
+      if (session) {
+        const roundId = await databaseService.createGameRound(
+          gameRecord.id,
+          1,
+          result.storyNode.narrative,
+          result.storyNode.choices
+        );
+        
+        if (roundId) {
+          (session as any).currentRoundId = roundId;
+        }
+      }
 
       return {
         ...result,
@@ -127,22 +142,34 @@ export class GameService {
       if (!session) throw new Error("Game session not found.");
       
       updateSessionActivity(sessionId);
-      const storyNode = await this.gameEngine.makeChoice(session, choiceText);
-
-      // 记录游戏轮次信息
+      
+      // 更新当前轮次的用户选择
       const gameRecordId = (session as any).gameRecordId;
+      const currentRoundId = (session as any).currentRoundId;
+      
+      if (gameRecordId && currentRoundId) {
+        await databaseService.updateGameRoundChoice(currentRoundId, choiceText);
+      }
+      
+      const storyNode = await this.gameEngine.makeChoice(session, choiceText);
+      console.log(storyNode)
+
+      // 创建新的轮次记录（为下一轮准备）
       if (gameRecordId) {
-        // 获取当前轮次编号
         const rounds = await databaseService.getGameRounds(gameRecordId);
         const roundNumber = rounds.length + 1;
-
-        await databaseService.saveGameRound(
+        
+        const newRoundId = await databaseService.createGameRound(
           gameRecordId,
           roundNumber,
           storyNode.narrative,
-          storyNode.choices,
-          choiceText
+          storyNode.choices
         );
+        
+        if (newRoundId) {
+          // 将新的轮次ID存储在会话中
+          (session as any).currentRoundId = newRoundId;
+        }
       }
 
       return storyNode;

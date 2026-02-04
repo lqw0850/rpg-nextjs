@@ -160,16 +160,34 @@ export class DatabaseService {
     return data;
   }
 
+  public async updateAllIncompleteGameRecords(userId: string, status: number) {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('user_game_records')
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('status', 0);
+
+    if (error) {
+      console.error('更新未完成游戏记录状态失败:', error);
+      return false;
+    }
+
+    return true;
+  }
+
   /**
-   * 保存游戏轮次记录
+   * 创建游戏轮次记录（第一阶段：生成剧情和选项）
    * @param recordId 游戏记录ID
    * @param roundNumber 轮次编号
    * @param plot 情节
    * @param options 选项
-   * @param userChoice 用户选择
-   * @returns 轮次记录
+   * @returns 轮次记录ID
    */
-  public async saveGameRound(recordId: number, roundNumber: number, plot: string, options: any, userChoice: string) {
+  public async createGameRound(recordId: number, roundNumber: number, plot: string, options: any): Promise<number | null> {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('game_round_records')
@@ -178,17 +196,41 @@ export class DatabaseService {
         round_number: roundNumber,
         plot,
         options,
-        user_choice: userChoice
+        user_choice: null // 初始为空，用户选择后更新
       })
-      .select()
+      .select('id')
       .single();
 
     if (error) {
-      console.error('保存游戏轮次记录失败:', error);
+      console.error('创建游戏轮次记录失败:', error);
       return null;
     }
 
-    return data;
+    return data.id;
+  }
+
+  /**
+   * 更新游戏轮次记录（第二阶段：用户选择）
+   * @param roundId 轮次记录ID
+   * @param userChoice 用户选择
+   * @returns 更新结果
+   */
+  public async updateGameRoundChoice(roundId: number, userChoice: string): Promise<boolean> {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('game_round_records')
+      .update({
+        user_choice: userChoice,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', roundId);
+
+    if (error) {
+      console.error('更新游戏轮次选择失败:', error);
+      return false;
+    }
+
+    return true;
   }
 
   /**

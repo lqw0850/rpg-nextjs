@@ -116,7 +116,17 @@ ABSOLUTE CONSTRAINTS
         responseSchema: openingSceneSchema,
       }
     });
-    return JSON.parse(response.text!) as { scene: string; options: { A: string; B: string; C: string } };
+
+    console.log(response)
+    console.log(response.candidates?.[0]?.content?.parts?.[0]?.text)
+    // 兼容性获取文本内容
+    const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!responseText) {
+      throw new Error('AI 返回了空响应');
+    }
+
+    return JSON.parse(responseText) as { scene: string; options: { A: string; B: string; C: string } };
   }
 
   public async startGame(
