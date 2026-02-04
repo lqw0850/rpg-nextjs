@@ -1026,7 +1026,17 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
           <Anchor size={24} />
           <span className="font-serif font-bold tracking-wider hidden sm:inline">万界传说</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          {user && (
+            <Button 
+              onClick={() => router.push('/archive')} 
+              variant="secondary" 
+              className="px-3 py-1 text-xs flex items-center gap-2"
+            >
+              <BookOpen size={14} />
+              时空档案
+            </Button>
+          )}
            <Sparkles size={20} className="text-yellow-300 animate-pulse" />
            <span className="text-xs uppercase tracking-widest text-ocean-400">Gemini Infinite RPG</span>
         </div>
