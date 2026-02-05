@@ -85,8 +85,17 @@ export default function Home() {
       const searchParams = new URLSearchParams(window.location.search);
       
       if (continueGame === 'true' || searchParams.get('continue') === 'true') {
-        // 清除继续游戏标记
+        // 清除继续游戏标记和URL参数
         localStorage.removeItem('continueGame');
+        localStorage.removeItem('currentIpName');
+        localStorage.removeItem('currentCharacterName');
+        
+        // 移除URL参数，防止重复触发
+        if (searchParams.get('continue') === 'true') {
+          searchParams.delete('continue');
+          const newUrl = window.location.pathname + (searchParams.toString() ? '?' + searchParams.toString() : '');
+          window.history.replaceState({}, '', newUrl);
+        }
         
         // 获取游戏信息
         const ipName = localStorage.getItem('currentIpName') || '';
@@ -120,7 +129,7 @@ export default function Home() {
         const data = await response.json();
         setStoryNode(data.storyNode);
         setStatus(GameStatus.PLAYING);
-        setShowChoices(false);
+        setShowChoices(true); // 继续游戏后立即显示选项
       } else {
         console.error('加载游戏状态失败');
         // 如果加载失败，清除sessionId
