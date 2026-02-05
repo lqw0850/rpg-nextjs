@@ -4,8 +4,8 @@ import { Validators } from "./validators";
 import { GameEngine } from "./gameEngine";
 import { ImageGenerator } from "./imageGenerator";
 import { OcGenerator } from "./ocGenerator";
-import { getGlobalSessions, createSession, getSession, updateSessionActivity, deleteSession, cleanupExpiredSessions } from "./sessionManager";
-import type { GameSession } from "./types";
+import { createSession, getSession, updateSessionActivity, cleanupExpiredSessions } from "./sessionManager";
+import { createClient } from './supabase/supabaseServer';
 import { databaseService } from "./databaseService";
 
 export class GameService {
@@ -221,6 +221,44 @@ export class GameService {
    */
   public async getGameRounds(gameRecordId: number) {
     return await databaseService.getGameRounds(gameRecordId);
+  }
+
+
+
+  /**
+   * 继续游戏
+   * @param gameRecordId 游戏记录ID
+   * @param ipName IP名称
+   * @param characterName 角色名称
+   * @param gameRounds 轮次记录
+   * @param isOc 是否为OC角色
+   * @param ocProfile OC档案
+   * @returns 继续游戏结果
+   */
+  public async continueGame(gameRecordId: number, ipName: string, characterName: string, gameRounds: any[], isOc?: boolean, ocProfile?: any): Promise<{ sessionId: string; storyNode: any }> {
+    return this.retryOperation(async () => {
+      // 获取最新轮次
+      const latestRound = gameRounds[gameRounds.length - 1];
+      
+      // 创建新的会话
+      const result = await this.gameEngine.continueGame(
+        ipName, 
+        characterName, 
+        latestRound, 
+        gameRounds.slice(0, -1), // 排除最新轮次，作为历史
+        isOc,
+        ocProfile
+      );
+
+      // 更新会话的游戏记录ID
+      const session = getSession(result.sessionId);
+      if (session) {
+        (session as any).gameRecordId = gameRecordId;
+        (session as any).currentRoundId = latestRound.id;
+      }
+
+      return result;
+    });
   }
 }
 

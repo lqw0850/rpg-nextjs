@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
-import { generateSystemInstruction } from "./prompts";
+import { generateSystemInstruction, generateContinueGameInstruction } from "./prompts";
 import { responseSchema, openingSceneSchema } from "./schemas";
+import { createSession } from "./sessionManager";
 import type { GameSession } from "./types";
 import type { StoryNode } from "../types";
 import type { Chat } from "@google/genai";
@@ -203,5 +204,72 @@ ABSOLUTE CONSTRAINTS
     };
     
     return storyNode;
+  }
+
+  public async continueGame(ipName: string, charName: string, latestRound: any, historyRounds: any[], isOc?: boolean, ocProfile?: any): Promise<{ sessionId: string; storyNode: StoryNode }> {
+    // 1. Generate session ID
+    const sessionId = crypto.randomUUID();
+
+    // 2. Build history from previous rounds
+    const history = [];
+    
+    // Add history rounds as context
+    for (const round of historyRounds) {
+      history.push({
+        role: 'model',
+        parts: [{ text: JSON.stringify({
+          narration: round.plot,
+          options: round.options,
+          status: 'CONTINUE',
+          characterAnalysis: ''
+        }) }]
+      });
+      history.push({
+        role: 'user',
+        parts: [{ text: `玩家采取行动: ${round.user_choice}` }]
+      });
+    }
+
+    // 3. Add the latest round as the current state (without user choice)
+    history.push({
+      role: 'user',
+      parts: [{ text: `继续游戏。背景是《${ipName}》，我是${charName}。我们从这个节点继续：${latestRound.plot}` }]
+    });
+    history.push({
+      role: 'model',
+      parts: [{ text: JSON.stringify({
+        narration: latestRound.plot,
+        options: latestRound.options,
+        status: 'CONTINUE',
+        characterAnalysis: ''
+      }) }]
+    });
+
+    // 4. Initialize the Main Chat Session with history
+    const chat = this.ai.chats.create({
+      model: "gemini-3-flash-preview",
+      history: history,
+      config: {
+        systemInstruction: generateContinueGameInstruction(ipName, charName, historyRounds, isOc, ocProfile),
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+      },
+    });
+
+    // 5. Create initial story node from latest round
+    const initialStoryNode: StoryNode = {
+      narrative: latestRound.plot,
+      choices: latestRound.options.map((opt: any, index: number) => ({
+        id: String.fromCharCode(65 + index), // A, B, C
+        text: opt
+      })),
+      status: 'CONTINUE',
+      characterAnalysis: ''
+    };
+
+    // 6. Create session
+    createSession(sessionId, chat, ipName);
+
+    return { sessionId, storyNode: initialStoryNode };
   }
 }

@@ -274,6 +274,27 @@ export class DatabaseService {
 
     return data;
   }
+
+  /**
+   * 根据ID获取游戏记录
+   * @param gameRecordId 游戏记录ID
+   * @returns 游戏记录
+   */
+  public async getGameRecordById(gameRecordId: number) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('user_game_records')
+      .select('*')
+      .eq('id', gameRecordId)
+      .single();
+
+    if (error) {
+      console.error('获取游戏记录失败:', error);
+      return null;
+    }
+
+    return data;
+  }
 }
 
 // 导出单例实例

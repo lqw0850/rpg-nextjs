@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Calendar, ChevronRight, User, ArrowLeft, Clock, ScrollText, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, User, ArrowLeft, Clock, ScrollText, CheckCircle2, Play } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { useSupabase } from '../../lib/supabase/supabaseProvider';
 import { supabase } from '../../lib/supabase/supabaseClient';
@@ -33,6 +33,7 @@ export default function ArchivePage() {
   const [selectedSession, setSelectedSession] = useState<ArchiveSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
+  const [latestPlayingSession, setLatestPlayingSession] = useState<ArchiveSession | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -122,6 +123,18 @@ export default function ArchivePage() {
       }
 
       setArchives(archiveSessions);
+      
+      // 先取出最新一条记录，再判断是否为PLAYING状态
+      const sortedSessions = archiveSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const latestSession = sortedSessions[0]; // 最新一条记录
+      
+      // 判断最新记录是否为PLAYING状态
+      if (latestSession && latestSession.status === 'PLAYING') {
+        setLatestPlayingSession(latestSession);
+      } else {
+        setLatestPlayingSession(null);
+      }
+      
       setDataFetched(true);
     } catch (error) {
       console.error('获取存档数据失败:', error);
@@ -132,6 +145,45 @@ export default function ArchivePage() {
 
   const handleBack = () => {
     router.push('/');
+  };
+
+  const handleContinueGame = async (session: ArchiveSession) => {
+    try {
+      // 调用继续游戏的API
+      const response = await fetch('/api/continue-game', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          gameRecordId: parseInt(session.id),
+          ipName: session.ipName,
+          characterName: session.characterName
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // 存储sessionId到localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('gameSessionId', data.sessionId);
+          // 存储继续游戏的状态标记
+          localStorage.setItem('continueGame', 'true');
+          // 存储游戏信息
+          localStorage.setItem('currentIpName', session.ipName);
+          localStorage.setItem('currentCharacterName', session.characterName);
+        }
+        
+        // 跳转到游戏页面，并传递继续游戏的标记
+        router.push('/?continue=true');
+      } else {
+        alert('继续游戏失败，请重试');
+      }
+    } catch (error) {
+      console.error('继续游戏失败:', error);
+      alert('继续游戏失败，请重试');
+    }
   };
 
   if (loading) {
@@ -235,9 +287,20 @@ export default function ArchivePage() {
               <p className="text-ocean-300 text-sm">回顾你所经历的命运线</p>
             </div>
           </div>
-          <Button onClick={handleBack} variant="secondary">
-            返回主控台
-          </Button>
+          <div className="flex items-center gap-3">
+            {latestPlayingSession && (
+              <Button 
+                onClick={() => handleContinueGame(latestPlayingSession)}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <Play size={16} />
+                继续游戏
+              </Button>
+            )}
+            <Button onClick={handleBack} variant="secondary">
+              返回主控台
+            </Button>
+          </div>
         </div>
 
         {archives.length === 0 ? (
@@ -248,43 +311,50 @@ export default function ArchivePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {archives.map((session) => (
-              <button
-                key={session.id}
-                onClick={() => setSelectedSession(session)}
-                className="group bg-ocean-900/40 border border-ocean-700/50 hover:border-ocean-400 hover:bg-ocean-800/40 p-5 rounded-xl text-left transition-all duration-300 shadow-lg relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <BookOpen size={64} />
+            {archives.map((session) => {
+              const isLatestPlaying = latestPlayingSession && latestPlayingSession.id === session.id;
+              
+              return (
+                <div key={session.id} className="relative">
+                  <button
+                    onClick={() => setSelectedSession(session)}
+                    className={`group w-full bg-ocean-900/40 border hover:border-ocean-400 hover:bg-ocean-800/40 p-5 rounded-xl text-left transition-all duration-300 shadow-lg relative overflow-hidden ${
+                      isLatestPlaying ? 'border-green-500/50' : 'border-ocean-700/50'
+                    }`}
+                  >
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <BookOpen size={64} />
+                    </div>
+
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-lg font-serif font-bold text-white group-hover:text-ocean-100 transition-colors">
+                          {session.ipName}
+                        </h3>
+                        <span className={`text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider ${
+                          session.status === 'VICTORY' ? 'border-yellow-500/30 text-yellow-200' : 
+                          session.status === 'GAME_OVER' ? 'border-red-500/30 text-red-200' : 'border-blue-500/30 text-blue-200'
+                        }`}>
+                          {session.status === 'PLAYING' ? '未完结' : session.status}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-ocean-200 text-sm">
+                        <User size={14} />
+                        <span>{session.characterName}</span>
+                      </div>
+
+                      <div className="pt-2 border-t border-ocean-700/30 flex justify-between items-center text-xs text-ocean-400">
+                        <span>{session.date}</span>
+                        <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-ocean-300 group-hover:text-white">
+                          查看记录 ({session.turns.length} 轮) <ChevronRight size={14} />
+                        </span>
+                      </div>
+                    </div>
+                  </button>
                 </div>
-
-                <div className="relative z-10 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-lg font-serif font-bold text-white group-hover:text-ocean-100 transition-colors">
-                      {session.ipName}
-                    </h3>
-                    <span className={`text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider ${
-                      session.status === 'VICTORY' ? 'border-yellow-500/30 text-yellow-200' : 
-                      session.status === 'GAME_OVER' ? 'border-red-500/30 text-red-200' : 'border-blue-500/30 text-blue-200'
-                    }`}>
-                      {session.status === 'PLAYING' ? '未完结' : session.status}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-ocean-200 text-sm">
-                    <User size={14} />
-                    <span>{session.characterName}</span>
-                  </div>
-
-                  <div className="pt-2 border-t border-ocean-700/30 flex justify-between items-center text-xs text-ocean-400">
-                    <span>{session.date}</span>
-                    <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-ocean-300 group-hover:text-white">
-                      查看记录 ({session.turns.length} 轮) <ChevronRight size={14} />
-                    </span>
-                  </div>
-                </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

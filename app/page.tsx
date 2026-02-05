@@ -78,6 +78,69 @@ export default function Home() {
     }
   }, [user, authLoading, router]);
 
+  // 处理继续游戏逻辑
+  useEffect(() => {
+    if (!authLoading && user && sessionId && typeof window !== 'undefined') {
+      const continueGame = localStorage.getItem('continueGame');
+      const searchParams = new URLSearchParams(window.location.search);
+      
+      if (continueGame === 'true' || searchParams.get('continue') === 'true') {
+        // 清除继续游戏标记
+        localStorage.removeItem('continueGame');
+        
+        // 获取游戏信息
+        const ipName = localStorage.getItem('currentIpName') || '';
+        const characterName = localStorage.getItem('currentCharacterName') || '';
+        
+        // 设置游戏信息
+        setIpName(ipName);
+        setCharacterName(characterName);
+        
+        // 加载游戏状态
+        loadGameState();
+      }
+    }
+  }, [authLoading, user, sessionId, router]);
+
+  const loadGameState = async () => {
+    if (!sessionId) return;
+    
+    setLoading(true);
+    try {
+      // 获取当前游戏状态
+      const response = await fetch('/api/get-game-state', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStoryNode(data.storyNode);
+        setStatus(GameStatus.PLAYING);
+        setShowChoices(false);
+      } else {
+        console.error('加载游戏状态失败');
+        // 如果加载失败，清除sessionId
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('gameSessionId');
+        }
+        setSessionId('');
+      }
+    } catch (error) {
+      console.error('加载游戏状态失败:', error);
+      // 如果加载失败，清除sessionId
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('gameSessionId');
+      }
+      setSessionId('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
