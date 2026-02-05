@@ -71,12 +71,12 @@ export default function Home() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 检查用户登录状态
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
+  // 检查用户登录状态 - 匿名用户不需要跳转
+  // useEffect(() => {
+  //   if (!authLoading && !user) {
+  //     router.push('/login');
+  //   }
+  // }, [user, authLoading, router]);
 
   // 处理继续游戏逻辑
   useEffect(() => {
@@ -207,10 +207,32 @@ export default function Home() {
 
   const handleStartGame = async (startNode: string) => {
     if (!startNode.trim()) return;
-    if (!user) {
-      alert('请先登录后再开始游戏');
-      router.push('/login');
-      return;
+    
+    let currentUser = user;
+    let isAnonymous = false;
+    
+    // 如果用户未登录，创建匿名用户
+    if (!currentUser) {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) {
+          console.error('匿名登录失败:', error);
+          alert('无法创建匿名用户，请尝试登录后重试');
+          setLoading(false);
+          return;
+        }
+        // 获取当前用户信息
+        const { data: userData } = await supabase.auth.getUser();
+        currentUser = userData.user;
+        isAnonymous = true;
+        console.log('匿名用户创建成功:', currentUser?.id);
+      } catch (error) {
+        console.error('匿名登录异常:', error);
+        alert('创建匿名用户时发生错误');
+        setLoading(false);
+        return;
+      }
     }
     setLoading(true);
     setSceneImage(null);
@@ -226,7 +248,7 @@ export default function Home() {
           characterName, 
           startNode, 
           isOc: charMode === 'OC',
-          finalOcProfile 
+          finalOcProfile
         }),
       });
       const data = await response.json();
@@ -447,10 +469,14 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
       const nextNode = await response.json();
       setStoryNode(nextNode);
       
+      // 判断是否为匿名用户
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const isAnonymous = currentUser?.app_metadata?.provider === 'anonymous' || currentUser?.app_metadata?.is_anonymous === true;
+      
       if (nextNode.status === 'GAME_OVER') {
         setStatus(GameStatus.GAME_OVER);
-        // 更新游戏状态为未通关
-        if (gameRecordId) {
+        // 匿名用户不需要更新游戏状态
+        if (gameRecordId && !isAnonymous) {
           await fetch('/api/update-game-status', {
             method: 'POST',
             headers: {
@@ -465,8 +491,8 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
         }
       } else if (nextNode.status === 'VICTORY') {
         setStatus(GameStatus.VICTORY);
-        // 更新游戏状态为已通关
-        if (gameRecordId) {
+        // 匿名用户不需要更新游戏状态
+        if (gameRecordId && !isAnonymous) {
           await fetch('/api/update-game-status', {
             method: 'POST',
             headers: {

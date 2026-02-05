@@ -7,18 +7,22 @@ export async function POST(request: NextRequest) {
     const supabaseServer = await createClient();
     const { data: { user }, error: authError } = await supabaseServer.auth.getUser();
     
+    const { ipName, characterName, startNode, isOc, finalOcProfile } = await request.json();
+    
+    // 检查用户认证状态
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    const { ipName, characterName, startNode, isOc, finalOcProfile } = await request.json();
     
     if (!ipName || !characterName || !startNode || typeof ipName !== 'string' || typeof characterName !== 'string' || typeof startNode !== 'string' || typeof isOc !== 'boolean') {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
     
+    // 判断是否为匿名用户
+    const isAnonymous = user.app_metadata?.provider === 'anonymous' || user.app_metadata?.is_anonymous === true;
+    
     const gameService = getGameService();
-    const { sessionId, storyNode, gameRecordId } = await gameService.startGame(user.id, ipName, characterName, startNode, isOc, finalOcProfile);
+    const { sessionId, storyNode, gameRecordId } = await gameService.startGame(user.id, ipName, characterName, startNode, isOc, finalOcProfile, isAnonymous);
     
     return NextResponse.json({ sessionId, gameRecordId, ...storyNode });
   } catch (error) {

@@ -9,24 +9,7 @@ export class DatabaseService {
    * @returns IP信息
    */
   public async findIpInfo(ipName: string) {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError) {
-      console.error('获取用户失败或令牌无效:', authError.message)
-    }
-
-    if (user) {
-      console.log('✅ 有有效会话，用户ID:', user.id)
-      console.log('用户邮箱:', user.email)
-      // 执行需要认证的操作
-    } else {
-      console.log('❌ 无有效会话，用户未登录')
-      // 跳转到登录页或显示未登录UI
-    }
-
-    console.log(ipName)
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('ip_infos')
       .select('*')
       .eq('ip_name', ipName)
@@ -102,9 +85,25 @@ export class DatabaseService {
    * @param characterName 角色名称
    * @param isOc 是否为OC角色
    * @param ocProfile OC档案
+   * @param isAnonymous 是否为匿名用户
    * @returns 游戏记录
    */
-  public async createGameRecord(userId: string, ipName: string, characterName: string, isOc: boolean, ocProfile?: any) {
+  public async createGameRecord(userId: string, ipName: string, characterName: string, isOc: boolean, ocProfile?: any, isAnonymous?: boolean) {
+    // 如果是匿名用户，不存储游戏记录
+    if (isAnonymous) {
+      console.log('匿名用户游戏，不存储记录');
+      return {
+        id: Math.random().toString(36).substring(2, 15), // 生成临时ID
+        user_id: userId,
+        ip_name: ipName,
+        character_name: characterName,
+        is_oc: isOc,
+        oc_profile: ocProfile,
+        status: 0,
+        is_anonymous: true
+      };
+    }
+
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('user_game_records')
@@ -185,9 +184,15 @@ export class DatabaseService {
    * @param roundNumber 轮次编号
    * @param plot 情节
    * @param options 选项
+   * @param isAnonymous 是否为匿名用户
    * @returns 轮次记录ID
    */
-  public async createGameRound(recordId: number, roundNumber: number, plot: string, options: any): Promise<number | null> {
+  public async createGameRound(recordId: number, roundNumber: number, plot: string, options: any, isAnonymous?: boolean): Promise<number | null> {
+    // 如果是匿名用户，不存储轮次记录
+    if (isAnonymous) {
+      console.log('匿名用户游戏，不存储轮次记录');
+      return Math.floor(Math.random() * 1000000); // 生成临时ID
+    }
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('game_round_records')
@@ -213,9 +218,15 @@ export class DatabaseService {
    * 更新游戏轮次记录（第二阶段：用户选择）
    * @param roundId 轮次记录ID
    * @param userChoice 用户选择
+   * @param isAnonymous 是否为匿名用户
    * @returns 更新结果
    */
-  public async updateGameRoundChoice(roundId: number, userChoice: string): Promise<boolean> {
+  public async updateGameRoundChoice(roundId: number, userChoice: string, isAnonymous?: boolean): Promise<boolean> {
+    // 如果是匿名用户，不更新数据库
+    if (isAnonymous) {
+      console.log('匿名用户游戏，不更新选择记录');
+      return true;
+    }
     const supabase = await createClient();
     const { error } = await supabase
       .from('game_round_records')

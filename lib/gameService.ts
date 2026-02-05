@@ -97,11 +97,14 @@ export class GameService {
     });
   }
 
-  public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number }> {
+  public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string, isAnonymous?: boolean): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number }> {
     return this.retryOperation(async () => {
-      await databaseService.updateAllIncompleteGameRecords(userId, 2);
+      // 如果是匿名用户，不更新未完成游戏记录
+      if (!isAnonymous) {
+        await databaseService.updateAllIncompleteGameRecords(userId, 2);
+      }
 
-      const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile);
+      const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile, isAnonymous);
       if (!gameRecord) {
         throw new Error("创建游戏记录失败");
       }
@@ -111,17 +114,19 @@ export class GameService {
         const session = getSession(sessionId);
         if (session) {
           (session as any).gameRecordId = gameRecord.id;
+          (session as any).isAnonymous = isAnonymous;
         }
       }, ocProfile);
 
       // 创建第一个轮次记录（在 startGame 完成后）
       const session = getSession(result.sessionId);
-      if (session) {
+      if (session && !isAnonymous) {
         const roundId = await databaseService.createGameRound(
           gameRecord.id,
           1,
           result.storyNode.narrative,
-          result.storyNode.choices
+          result.storyNode.choices,
+          isAnonymous
         );
         
         if (roundId) {
