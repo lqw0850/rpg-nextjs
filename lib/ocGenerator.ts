@@ -90,8 +90,29 @@ Input: "${ipName}"
         responseSchema: visualPromptSchema,
       }
     });
-    const result = JSON.parse(response.text!);
-    return result.visualDescription;
+    
+    // 检查内容是否被阻止
+    if (response.promptFeedback?.blockReason === 'PROHIBITED_CONTENT') {
+      console.warn('AI content generation blocked due to prohibited content');
+      // 返回一个安全的默认描述
+      return `A character with a distinctive appearance suitable for an RPG game. Focus on creating a visually interesting design that fits the character profile.`;
+    }
+    
+    // 检查是否有有效的响应
+    const candidate = response.candidates?.[0];
+    if (!candidate || !candidate.content?.parts?.[0]?.text) {
+      console.warn('No valid response from AI');
+      return `A character with a unique design based on the provided profile.`;
+    }
+    
+    try {
+      const result = JSON.parse(candidate.content.parts[0].text);
+      return result.visualDescription;
+    } catch (error) {
+      console.error('Failed to parse AI response:', error);
+      // 如果解析失败，返回原始文本或默认描述
+      return candidate.content.parts[0].text || `A character with a distinctive appearance.`;
+    }
   }
 
   public async generatePlotNodes(ipName: string, charName: string, charMode: 'CANON' | 'OC', ocProfile?: string): Promise<string[]> {

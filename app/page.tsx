@@ -9,6 +9,7 @@ import { NarrativeDisplay } from '../components/NarrativeDisplay';
 import { useSupabase } from '../lib/supabase/supabaseProvider';
 import { supabase } from '../lib/supabase/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { ART_STYLES, DEFAULT_ART_STYLE, type ArtStyle } from '../lib/artStyles';
 
 type SetupStep = 'SELECT_IP' | 'SELECT_CHARACTER' | 'SELECT_START_NODE';
 type CharacterMode = 'CANON' | 'OC';
@@ -64,6 +65,7 @@ export default function Home() {
   const [ocVisualDesc, setOcVisualDesc] = useState('');
   const [isRegeneratingOc, setIsRegeneratingOc] = useState(false);
   const [finalOcProfile, setFinalOcProfile] = useState<string>('');
+  const [selectedArtStyle, setSelectedArtStyle] = useState<ArtStyle>(DEFAULT_ART_STYLE);
 
   // Start Node State
   const [plotNodes, setPlotNodes] = useState<string[]>([]);
@@ -282,7 +284,7 @@ export default function Home() {
         body: JSON.stringify({ ipName, characterName }),
       });
       const result = await response.json();
-      
+      console.log(result);
       if (result.isExist) {
         // Use extracted appearance for consistent visuals
         if (result.appearance) {
@@ -292,21 +294,40 @@ export default function Home() {
           setOcVisualDesc(""); 
         }
         
-        // Generate Plot Nodes instead of starting game immediately
-        const nodesResponse = await fetch('/api/generate-plot-nodes', {
+        // 为原著角色生成形象描述
+        const profileResponse = await fetch('/api/generate-canon-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ipName, characterName }),
+        });
+        const profile = await profileResponse.json();
+        setFinalOcProfile(profile);
+        console.log(result.appearance);
+        // 为原著角色生成场景形象（不是OC肖像）
+        const imageResponse = await fetch('/api/generate-image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            ipName, 
-            characterName, 
-            charMode: 'CANON' 
+            sessionId: 'canon-character-preview', // 为原著角色提供临时sessionId
+            narrative: "Character portrait, facing camera, official artwork style.", 
+            isOcPortrait: false,
+            ocVisualDescription: result.appearance || ""
           }),
         });
-        const nodes = await nodesResponse.json();
-        setPlotNodes(nodes);
-        setSetupStep('SELECT_START_NODE');
+        
+        if (imageResponse.ok) {
+          const image = await imageResponse.json();
+          if (image && typeof image === 'string' && image.startsWith('data:')) {
+            setOcImage(image);
+          }
+        }
+        
+        // 进入形象生成步骤
+        setOcStep('IMAGE_GEN');
       } else {
         setCanonValidationMsg("该角色似乎不属于此世界，请检查拼写或尝试创建原创角色。");
       }
@@ -352,26 +373,31 @@ export default function Home() {
     }
   };
 
-  const handleGenerateOcImage = async () => {
+  const handleGenerateCharacterImage = async () => {
     setLoading(true);
     try {
-      const profile = `
+      let visualPrompt = ocVisualDesc;
+      
+      // 如果是OC角色，生成视觉描述
+      if (charMode === 'OC') {
+        const profile = `
 Name: ${characterName}
 Details:
 ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
-      `.trim();
-      setFinalOcProfile(profile);
+        `.trim();
+        setFinalOcProfile(profile);
 
-      // Generate visual prompt
-      const visualPromptResponse = await fetch('/api/generate-oc-visual-prompt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ profile }),
-      });
-      const visualPrompt = await visualPromptResponse.json();
-      setOcVisualDesc(visualPrompt);
+        // Generate visual prompt for OC
+        const visualPromptResponse = await fetch('/api/generate-oc-visual-prompt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ profile }),
+        });
+        visualPrompt = await visualPromptResponse.json();
+        setOcVisualDesc(visualPrompt);
+      }
 
       // Generate image
       const imageResponse = await fetch('/api/generate-image', {
@@ -382,11 +408,24 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         body: JSON.stringify({ 
           narrative: "Portrait shot, facing camera, character sheet style.", 
           isOcPortrait: true,
-          ocVisualDescription: visualPrompt
+          ocVisualDescription: visualPrompt,
+          artStyle: selectedArtStyle.id
         }),
       });
+      
+      if (!imageResponse.ok) {
+        throw new Error(`图片生成失败: ${imageResponse.status}`);
+      }
+      
       const image = await imageResponse.json();
-      setOcImage(image);
+      console.log('Generated image response:', image);
+      
+      if (image && typeof image === 'string' && image.startsWith('data:')) {
+        setOcImage(image);
+      } else {
+        console.warn('Invalid image response format:', image);
+        setOcImage(null);
+      }
       setOcStep('IMAGE_GEN');
     } catch (error) {
       console.error(error);
@@ -408,11 +447,24 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         body: JSON.stringify({ 
           narrative: "Portrait shot, facing camera, character sheet style.", 
           isOcPortrait: true,
-          ocVisualDescription: ocVisualDesc
+          ocVisualDescription: ocVisualDesc,
+          artStyle: selectedArtStyle.id
         }),
       });
+      
+      if (!imageResponse.ok) {
+        throw new Error(`图片生成失败: ${imageResponse.status}`);
+      }
+      
       const image = await imageResponse.json();
-      setOcImage(image);
+      console.log('Regenerated image response:', image);
+      
+      if (image && typeof image === 'string' && image.startsWith('data:')) {
+        setOcImage(image);
+      } else {
+        console.warn('Invalid image response format:', image);
+        setOcImage(null);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -420,15 +472,22 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     }
   };
 
-  const handleConfirmOcAndGenerateNodes = async () => {
+  const handleConfirmCharacterAndGenerateNodes = async () => {
     setLoading(true);
     try {
-      // Reconstruct profile just in case state was lost, though setFinalOcProfile handles it
-      const profile = finalOcProfile || `
-设定问答:
-${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join('\n')}
-      `.trim();
-      setFinalOcProfile(profile);
+      let profile = finalOcProfile;
+      
+      // 如果是OC角色，重新构建档案
+      if (charMode === 'OC') {
+        profile = finalOcProfile || `
+Questions & Answers:
+${ocQuestions.map((q, i) => `Q: ${q}\nA: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
+        `.trim();
+      }
+      
+      // 添加画风信息到档案
+      const profileWithArtStyle = `${profile}\nartStyle: ${selectedArtStyle.name}`;
+      setFinalOcProfile(profileWithArtStyle);
 
       const nodesResponse = await fetch('/api/generate-plot-nodes', {
         method: 'POST',
@@ -438,8 +497,8 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
         body: JSON.stringify({ 
           ipName, 
           characterName, 
-          charMode: 'OC',
-          ocProfile: profile 
+          charMode: charMode,
+          ocProfile: charMode === 'OC' ? profileWithArtStyle : undefined 
         }),
       });
       const nodes = await nodesResponse.json();
@@ -827,7 +886,7 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                             <Button onClick={() => setOcStep('CONCEPT')} variant="secondary" className="px-4">
                               <ArrowLeft size={20} />
                             </Button>
-                            <Button onClick={handleGenerateOcImage} isLoading={loading} className="flex-1 text-lg group">
+                            <Button onClick={handleGenerateCharacterImage} isLoading={loading} className="flex-1 text-lg group">
                               <span className="flex items-center justify-center gap-2">
                                 生成形象 <Camera size={18} className="group-hover:scale-110 transition-transform" />
                               </span>
@@ -835,42 +894,74 @@ ${ocQuestions.map((q, i) => `问: ${q}\n答: ${ocAnswers[i] || '未知'}`).join(
                           </div>
                        </div>
                      )}
+                   </div>
+                )}
 
-                     {ocStep === 'IMAGE_GEN' && (
-                       <div className="space-y-6 text-center animate-in fade-in zoom-in duration-500">
-                         <div className="relative mx-auto w-48 h-48 md:w-64 md:h-64 rounded-xl overflow-hidden border-2 border-ocean-400/50 shadow-[0_0_30px_rgba(96,165,250,0.3)] bg-ocean-900/50">
-                           {ocImage ? (
-                             <Image src={ocImage} alt="OC Character" className="w-full h-full object-cover" fill />
-                           ) : (
-                             <div className="w-full h-full flex flex-col items-center justify-center text-ocean-400/50">
-                               <User size={48} className="mb-2"/>
-                             </div>
-                           )}
-                           <div className="absolute inset-0 border-4 border-ocean-900/20 rounded-xl pointer-events-none"></div>
+                {/* 形象生成页面（OC和原著角色共用） */}
+                {ocStep === 'IMAGE_GEN' && (
+                   <div className="space-y-6 text-center animate-in fade-in zoom-in duration-500">
+                     <div className="relative mx-auto w-48 h-48 md:w-64 md:h-64 rounded-xl overflow-hidden border-2 border-ocean-400/50 shadow-[0_0_30px_rgba(96,165,250,0.3)] bg-ocean-900/50">
+                       {loading || isRegeneratingOc ? (
+                         <div className="w-full h-full flex flex-col items-center justify-center text-ocean-400/50">
+                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-400"></div>
+                           <p className="text-xs mt-2">生成中...</p>
                          </div>
-                         
-                         <div>
-                            <h3 className="text-xl font-serif text-white">{characterName}</h3>
+                       ) : ocImage ? (
+                         <Image src={ocImage} alt="Character" className="w-full h-full object-cover" fill />
+                       ) : (
+                         <div className="w-full h-full flex flex-col items-center justify-center text-ocean-400/50">
+                           <User size={48} className="mb-2"/>
+                           <p className="text-xs">点击重绘生成形象</p>
                          </div>
+                       )}
+                       <div className="absolute inset-0 border-4 border-ocean-900/20 rounded-xl pointer-events-none"></div>
+                     </div>
+                     
+                     <div>
+                        <h3 className="text-xl font-serif text-white">{characterName}</h3>
+                        <p className="text-sm text-ocean-300">{charMode === 'OC' ? '原创角色' : '原著角色'}</p>
+                     </div>
 
-                         <div className="flex gap-3 pt-2">
-                            <Button 
-                              onClick={handleRegenerateOcImage} 
-                              variant="secondary" 
-                              className="flex-1"
-                              isLoading={isRegeneratingOc}
-                              disabled={loading}
-                            >
-                              <RefreshCw size={18} className={`mr-2 ${isRegeneratingOc ? 'animate-spin' : ''}`} /> 重绘
-                            </Button>
-                            <Button onClick={handleConfirmOcAndGenerateNodes} isLoading={loading} className="flex-1 group">
-                              <span className="flex items-center justify-center gap-2">
-                                确认并下一步 <ArrowRight size={18} className="group-hover:translate-x-1" />
-                              </span>
-                            </Button>
-                          </div>
+                     {/* 画风选择器 */}
+                     <div className="bg-ocean-900/40 border border-ocean-700/50 rounded-xl p-4">
+                       <h4 className="text-sm font-serif text-ocean-200 mb-3 flex items-center gap-2">
+                         <PenTool size={16} /> 选择画风
+                       </h4>
+                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                         {ART_STYLES.map((style) => (
+                           <button
+                             key={style.id}
+                             onClick={() => setSelectedArtStyle(style)}
+                             className={`p-2 rounded-lg text-xs transition-all duration-200 ${
+                               selectedArtStyle.id === style.id
+                                 ? 'bg-ocean-600 text-white border border-ocean-400'
+                                 : 'bg-ocean-800/50 text-ocean-200 border border-ocean-700/50 hover:bg-ocean-700/50'
+                             }`}
+                             title={style.description}
+                           >
+                             {style.name}
+                           </button>
+                         ))}
                        </div>
-                     )}
+                       <p className="text-xs text-ocean-400 mt-2">当前画风: {selectedArtStyle.name}</p>
+                     </div>
+
+                     <div className="flex gap-3 pt-2">
+                        <Button 
+                          onClick={handleRegenerateOcImage} 
+                          variant="secondary" 
+                          className="flex-1"
+                          isLoading={isRegeneratingOc}
+                          disabled={loading}
+                        >
+                          <RefreshCw size={18} className={`mr-2 ${isRegeneratingOc ? 'animate-spin' : ''}`} /> 重绘
+                        </Button>
+                        <Button onClick={handleConfirmCharacterAndGenerateNodes} isLoading={loading} className="flex-1 group">
+                          <span className="flex items-center justify-center gap-2">
+                            确认并下一步 <ArrowRight size={18} className="group-hover:translate-x-1" />
+                          </span>
+                        </Button>
+                      </div>
                    </div>
                 )}
               </div>

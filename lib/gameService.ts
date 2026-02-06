@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { StoryNode } from "../types";
+import type { Chat } from "@google/genai";
 import { Validators } from "./validators";
 import { GameEngine } from "./gameEngine";
 import { ImageGenerator } from "./imageGenerator";
@@ -157,7 +158,7 @@ export class GameService {
       }
       
       const storyNode = await this.gameEngine.makeChoice(session, choiceText);
-      console.log(storyNode)
+      // console.log(storyNode)
 
       // 创建新的轮次记录（为下一轮准备）
       if (gameRecordId) {
@@ -181,13 +182,31 @@ export class GameService {
     });
   }
 
-  public async generateImage(sessionId: string, narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string): Promise<string | null> {
+  public async generateImage(sessionId: string, narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string, artStyle?: string): Promise<string | null> {
     try {
-      const session = getSession(sessionId);
-      if (!session) throw new Error("Game session not found.");
+      let session = getSession(sessionId);
       
-      updateSessionActivity(sessionId);
-      return await this.imageGenerator.generateImage(session, narrative, isOcPortrait, ocVisualDescription);
+      // 如果是OC角色图像生成或原著角色预览且session不存在，创建一个临时session
+      if ((isOcPortrait || sessionId === 'canon-character-preview') && !session) {
+        session = {
+          id: sessionId,
+          chat: { history: [] } as unknown as Chat, // 使用双重类型断言
+          ipName: sessionId === 'canon-character-preview' ? 'Canon Character Preview' : 'OC Generation',
+          ocVisualDescription: ocVisualDescription || '',
+          createdAt: new Date(),
+          lastActivityAt: new Date()
+        } as any;
+      } else if (!session) {
+        throw new Error("Game session not found.");
+      }
+      
+      
+      // 只有真实的session才需要更新活动时间
+      if (sessionId !== 'oc-image-generation' && sessionId !== 'canon-character-preview') {
+        updateSessionActivity(sessionId);
+      }
+      
+      return await this.imageGenerator.generateImage(session!, narrative, isOcPortrait, ocVisualDescription, artStyle);
     } catch (error: any) {
       if (error.status === 'RESOURCE_EXHAUSTED' || error.code === 429) {
           console.warn("Image generation quota exceeded. Skipping image.");

@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { GameSession } from "./types";
+import { ART_STYLES, DEFAULT_ART_STYLE, getArtStyleById } from './artStyles';
 
 export class ImageGenerator {
   private ai: GoogleGenAI;
@@ -12,11 +13,11 @@ export class ImageGenerator {
     session: GameSession,
     narrative: string,
     isOcPortrait: boolean = false,
-    ocVisualDescription?: string
+    ocVisualDescription?: string,
+    artStyle?: string
   ): Promise<string | null> {
     try {
       const context = session.ipName ? `Style consistent with the world of ${session.ipName}.` : "Fantasy style.";
-      
       // If we have an OC description, include it in the prompt
       let characterContext = "";
       const visualDesc = ocVisualDescription || session.ocVisualDescription;
@@ -24,18 +25,38 @@ export class ImageGenerator {
         characterContext = `The MAIN CHARACTER in the image MUST look like this: ${visualDesc}.`;
       }
 
+      // 处理画风
+      let stylePrompt = "";
+      if (artStyle) {
+        const selectedStyle = getArtStyleById(artStyle);
+        if (selectedStyle) {
+          stylePrompt = selectedStyle.prompt;
+          // 记录画风到会话中，用于后续场景生成
+          (session as any).artStyle = artStyle;
+        }
+      }
+      
+      // 如果没有指定画风，使用会话中保存的画风
+      if (!stylePrompt && (session as any).artStyle) {
+        const sessionStyle = getArtStyleById((session as any).artStyle);
+        if (sessionStyle) {
+          stylePrompt = sessionStyle.prompt;
+        }
+      }
+
       let prompt = "";
       if (isOcPortrait) {
         // Specific prompt for OC generation
-         prompt = `Character Portrait, high quality, masterpiece. ${context} ${characterContext} ${narrative}`;
+         prompt = `Character Portrait, high quality, masterpiece. ${context} ${characterContext} ${narrative} ${stylePrompt}`;
       } else {
         // Scene generation
          const shortNarrative = narrative.length > 500 ? narrative.substring(0, 500) : narrative;
-         prompt = `Realistic hand-drawn illustration style, detailed background, cinematic lighting, masterpiece. ${context} ${characterContext} Scene action: ${shortNarrative}`;
+         prompt = `${stylePrompt || 'Realistic hand-drawn illustration style, detailed background, cinematic lighting, masterpiece.'} ${context} ${characterContext} Scene action: ${shortNarrative}`;
       }
 
+      // console.log(prompt)
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3-pro-image-preview',
         contents: { parts: [{ text: prompt }] },
       });
       const parts = response.candidates?.[0]?.content?.parts;

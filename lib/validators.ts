@@ -128,10 +128,12 @@ DETERMINISM: Identical queries must follow the same logic path and source hierar
 
     const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: ipName,
       config: {
         responseMimeType: "application/json",
         responseSchema: ipValidationSchema,
+        systemInstruction: prompt,
+        temperature: 0.5,
       }
     });
 
@@ -169,7 +171,7 @@ You must extract information to fill the following schema. Use an empty array []
 "affiliations": [], // All groups, factions, families, or organizations the character belongs to.
 "coreRelationships": [] // Key personal relationships described in the narrative.
 },
-"appearance": "" // A direct quote or close paraphrase of the physical description from the text.
+"appearance": "" // A comprehensive description compiled from all physical details (hair, eyes, build, clothing) mentioned throughout the text. Do not limit to a single quote.
 }
 Extraction Rules for Features:
 Be exhaustive: Populate each array with ALL relevant, verifiable items from the text.
@@ -186,12 +188,16 @@ Name Variations: If the input name is a common alias, still try to find the cano
 
     const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: `WORK_NAME("${ipName}"): CHARACTER_NAME("${charName}")`,
       config: {
         responseMimeType: "application/json",
         responseSchema: characterValidationSchema,
+        systemInstruction: prompt,
+        temperature: 0.5,
       }
     });
+    console.log(response);
+    console.log(response.text);
     return JSON.parse(response.text!) as CharacterValidationResult;
   }
 }
