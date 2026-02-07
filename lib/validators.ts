@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { ipValidationSchema, characterValidationSchema } from "./schemas";
 import type { IpValidationResult, CharacterValidationResult } from "./types";
 import { databaseService } from "./databaseService";
@@ -103,10 +103,10 @@ Output ONLY valid JSON, with no additional text.
 
 If isExist is true:
 {
+"abstract": "[Factual English summary under 200 words from canonical description]",
 "isExist": true,
 "author": "[Author name as in canonical sources]",
 "originalLanguage": "[Standard language name, e.g., English, Chinese]",
-"abstract": "[Factual English summary under 200 words from canonical description]",
 "category": "[One category from the list]"
 }
 
@@ -130,10 +130,25 @@ DETERMINISM: Identical queries must follow the same logic path and source hierar
       model: "gemini-3-flash-preview",
       contents: ipName,
       config: {
+        // 联网搜索设置
+        tools: [
+          {
+            googleSearch: {} // 开启 Google 搜索联网功能
+          }
+        ],
         responseMimeType: "application/json",
         responseSchema: ipValidationSchema,
         systemInstruction: prompt,
-        temperature: 0.5,
+        temperature: 0.3,
+        topK: 40,        // 增加候选词范围，防止陷入单词循环
+        topP: 0.9,
+        // 防止敏感内容被拦截导致返回空
+        safetySettings: [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ]
       }
     });
 
@@ -162,15 +177,6 @@ If the character exists: Proceed to Step 2.
 You must extract information to fill the following schema. Use an empty array [] or empty string "" if no clear information is found for a field.
 {
 "isExist": true,
-"basicInfo": {
-"canonicalName": "", // The character's primary, official name in the text.
-"aliases": [] // A list of alternative names, titles, or epithets.
-},
-"features": {
-"occupations": [], // All roles, jobs, or titles (e.g., ["Student", "Quidditch Seeker"]).
-"affiliations": [], // All groups, factions, families, or organizations the character belongs to.
-"coreRelationships": [] // Key personal relationships described in the narrative.
-},
 "appearance": "" // A comprehensive description compiled from all physical details (hair, eyes, build, clothing) mentioned throughout the text. Do not limit to a single quote.
 }
 Extraction Rules for Features:
@@ -190,10 +196,25 @@ Name Variations: If the input name is a common alias, still try to find the cano
       model: "gemini-3-flash-preview",
       contents: `WORK_NAME("${ipName}"): CHARACTER_NAME("${charName}")`,
       config: {
+        // 联网搜索设置
+        tools: [
+          {
+            googleSearch: {} // 开启 Google 搜索联网功能
+          }
+        ],
         responseMimeType: "application/json",
         responseSchema: characterValidationSchema,
         systemInstruction: prompt,
         temperature: 0.5,
+        topK: 60,        // 增加候选词范围，防止陷入单词循环
+        topP: 0.8,
+        // 防止敏感内容被拦截导致返回空
+        safetySettings: [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ]
       }
     });
     console.log(response);

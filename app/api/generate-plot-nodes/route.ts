@@ -4,7 +4,7 @@ import { getGameService } from '../../../lib/gameService';
 export async function POST(request: NextRequest) {
   try {
     const { ipName, characterName, charMode, ocProfile } = await request.json();
-    
+    console.log('Received request:', { ipName, characterName, charMode, ocProfile });
     if (!ipName || !characterName || !charMode || typeof ipName !== 'string' || typeof characterName !== 'string' || typeof charMode !== 'string') {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }

@@ -187,6 +187,15 @@ ABSOLUTE CONSTRAINTS
   }
 
   public async makeChoice(session: GameSession, choiceText: string): Promise<StoryNode> {
+    //测试代码，将状态调为结束，调试结尾页面
+    // return {
+    //   narrative: "You search your memory, recalling the long nights spent under the covers with a flashlight at Privet Drive. 'Asphodel and wormwood make a sleeping potion so powerful it is known as the Draught of Living Death, sir,' you say clearly. The room goes quiet; even Hermione looks surprised. Snape’s eyes narrow, his disappointment palpable that he couldn't humiliate you instantly. 'Tut, tut — fame clearly isn't everything,' he sneers, refusing to award Gryffindor any points for the correct answer. 'Let's try again. Potter, where would you look if I told you to find me a bezoar?' He leans in closer, his shadow looming over your desk, determined to find the limit of your pre-term reading and break your newfound confidence.",
+    //   choices: [],
+    //   status: 'VICTORY',
+    //   characterLabel: 'Shero',
+    //   characterAnalysis: "Harry Potter is a series of seven fantasy novels written by British author J. K. Rowling. The novels chronicle the lives of a young wizard, Harry Potter, and his friends, Ron Weasley and Hermione Granger, all of whom are students at Hogwarts School of Witchcraft and Wizardry. The main story arc concerns Harry's conflict with Lord Voldemort, a dark wizard who intends to become immortal, overthrow the wizard governing body known as the Ministry of Magic, and subjugate all wizards and non-magical people, known in-universe as Muggles."
+    // };
+
     const chatSession = session.chat;
     const result = await chatSession.sendMessage({ message: `玩家采取行动: ${choiceText}` });
     const rawResponse = JSON.parse(result.text!);
@@ -202,7 +211,7 @@ ABSOLUTE CONSTRAINTS
       status: rawResponse.status,
       characterAnalysis: rawResponse.characterAnalysis
     };
-    
+
     return storyNode;
   }
 
@@ -250,6 +259,12 @@ ABSOLUTE CONSTRAINTS
       model: "gemini-3-flash-preview",
       history: history,
       config: {
+        // 联网搜索设置
+        tools: [
+          {
+            googleSearch: {} // 开启 Google 搜索联网功能
+          }
+        ],
         systemInstruction: generateContinueGameInstruction(ipName, charName, historyRounds, isOc, ocProfile),
         responseMimeType: "application/json",
         responseSchema: responseSchema,

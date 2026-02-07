@@ -59,6 +59,34 @@ export const ART_STYLES: ArtStyle[] = [
 // 默认画风
 export const DEFAULT_ART_STYLE = ART_STYLES[0]; // Minimalist Pixel
 
+// 创建映射表
+const categoryToStyleMap: Record<string, string> = {
+  "Fairy Tale": "watercolor",
+  "Western Fantasy": "fantasy",
+  "Eastern Fantasy": "ink_wash",
+  "Modern Urban": "modern",
+  "Mystery & Horror": "mystery",
+  "War": "Oil Painting",
+  "Western": "minimalist_pixel",
+  "Science Fiction": "anime"
+};
+
+// 根据作品获取画风
+export function getArtStyleByCategory(category: string): ArtStyle | undefined {
+  const normalizedCategory = category.trim();
+
+  // 获取映射结果
+  // 如果匹配不到（例如输入了不在列表中的分类），默认返回 'Modern'
+  const style = categoryToStyleMap[normalizedCategory];
+
+  if (!style) {
+    console.warn(`未找到分类 [${normalizedCategory}] 对应的映射，已返回默认画风。`);
+    return DEFAULT_ART_STYLE;
+  }
+
+  return getArtStyleById(style);
+}
+
 // 根据ID获取画风
 export function getArtStyleById(id: string): ArtStyle | undefined {
   return ART_STYLES.find(style => style.id === id);

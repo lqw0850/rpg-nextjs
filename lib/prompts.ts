@@ -68,7 +68,10 @@ Pacing Note: Be especially mindful of these conditions during Turns 16-20, activ
 
 NARRATIVE TONE LOCK: The prose style, vocabulary, and tone of your narration MUST closely match the writing style of the original work "${ipName}" (e.g., wuxia style for martial arts tales, gritty and rational for cyberpunk).
 
-GAME CONCLUSION: When the status is not CONTINUE, you MUST provide a "Soul Reflection" in the characterAnalysis field. This should analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
+GAME CONCLUSION:
+When the status is not CONTINUE, you MUST provide:
+1. A "characterLabel" field: A single, evocative title (Archetype) that summarizes the player's core behavioral pattern (e.g., "The Visionary Rebel," "The Stoic Survivor," or "The Fallen Saint").
+2. A "characterAnalysis" field: Analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
 
 OUTPUT FORMAT:
 You must output ONLY the following JSON object. No other text is permitted.
@@ -80,6 +83,7 @@ You must output ONLY the following JSON object. No other text is permitted.
     "C": "Option C text"
   },
   "status": "CONTINUE",
+  "characterLabel": "",
   "characterAnalysis": ""
 }
 CRITICAL NOTE: Populate the characterAnalysis field ONLY when the status is GAME_OVER or VICTORY. Otherwise, it must be an empty string "".
@@ -145,7 +149,11 @@ VICTORY: Triggered by achieving a clear, definitive positive endpoint (e.g., acc
 
 NARRATIVE TONE LOCK: The prose style, vocabulary, and tone of your narration MUST closely match the writing style of the original work "${ipName}".
 
-GAME CONCLUSION: When the status is not CONTINUE, you MUST provide a "Soul Reflection" in the characterAnalysis field. This should analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
+GAME CONCLUSION: 
+When the status is not CONTINUE, you MUST provide:
+1. A "characterLabel" field: A single, evocative title (Archetype) that summarizes the player's core behavioral pattern (e.g., "The Visionary Rebel," "The Stoic Survivor," or "The Fallen Saint").
+2. A "characterAnalysis" field: Analyze how the player's overall actions throughout the game aligned with the character's established nature, followed by a brief philosophical summary of the final fate (approx. 50-100 words).
+
 
 OUTPUT FORMAT:
 You must output ONLY the following JSON object. No other text is permitted.
@@ -157,6 +165,7 @@ You must output ONLY the following JSON object. No other text is permitted.
     "C": "Option C text"
   },
   "status": "CONTINUE",
+  "characterLabel": "",
   "characterAnalysis": ""
 }
 CRITICAL NOTE: Populate the characterAnalysis field ONLY when the status is GAME_OVER or VICTORY. Otherwise, it must be an empty string "".

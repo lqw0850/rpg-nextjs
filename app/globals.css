@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 :root {
+  --ink: #5D4037;
+  --ink-light: #8D6E63;
+  --paper: #F2EFE5;
+  --tribal-dark: #B09882;
+  --tribal-light: #D7C9B6;
+  --bg-paper: #FDFBF7;
+  --bg-card: #EFEBE9;
+  --purple: #9fa0d7;
+  --orange: #FF7043;
   --ocean-900: #0f172a;
   --ocean-800: #1e293b;
   --ocean-700: #334155;
@@ -22,8 +31,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--ocean-900);
-  color: white;
+  background-color: var(--paper);
+  color: var(--ink);
 }
 
 code {
@@ -58,6 +67,19 @@ code {
   animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 60s linear infinite;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -84,4 +106,39 @@ code {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Custom scrollbar for tribal theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(93, 64, 55, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(93, 64, 55, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(93, 64, 55, 0.5);
+}
+
+/* Pixel art rendering */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+.rendering-pixelated {
+  image-rendering: pixelated;
+}
+
+/* Sepia filter utility */
+.sepia-filter {
+  filter: sepia(0.4) contrast(0.9) brightness(1.05);
 }

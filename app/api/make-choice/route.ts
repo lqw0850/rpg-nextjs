@@ -4,7 +4,7 @@ import { getGameService } from '../../../lib/gameService';
 export async function POST(request: NextRequest) {
   try {
     const { sessionId, choiceText } = await request.json();
-    
+    console.log('Received request:', { sessionId, choiceText });
     if (!sessionId || !choiceText || typeof sessionId !== 'string' || typeof choiceText !== 'string') {
       return NextResponse.json({ error: 'Invalid session ID or choice text' }, { status: 400 });
     }

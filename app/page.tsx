@@ -3,29 +3,23 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { GameStatus, type StoryNode, type Choice } from '../types';
-import { Waves, Sparkles, Crown, Anchor, Image as ImageIcon, Send, ScrollText, BookOpen, User, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, UserPlus, FileQuestion, Feather, Tag, RefreshCw, Camera, Globe, MapPin, PenTool, LogOut } from 'lucide-react';
-import { Button } from '../components/Button';
-import { NarrativeDisplay } from '../components/NarrativeDisplay';
+import { TribalBackground } from '../components/TribalBackground';
 import { useSupabase } from '../lib/supabase/supabaseProvider';
 import { supabase } from '../lib/supabase/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { ART_STYLES, DEFAULT_ART_STYLE, type ArtStyle } from '../lib/artStyles';
+import { IpSelectionPage } from '../components/game/IpSelectionPage';
+import { StoryDetailsPage } from '../components/game/StoryDetailsPage';
+import { RoleSelectionPage } from '../components/game/RoleSelectionPage';
+import { OcQuestionnairePage } from '../components/game/OcQuestionnairePage';
+import { CharacterImagePage } from '../components/game/CharacterImagePage';
+import { PlotNodeSelectionPage } from '../components/game/PlotNodeSelectionPage';
+import { GameMainPage } from '../components/game/GameMainPage';
+import { EndingSummaryPage } from '../components/game/EndingSummaryPage';
 
-type SetupStep = 'SELECT_IP' | 'SELECT_CHARACTER' | 'SELECT_START_NODE';
+type SetupStep = 'SELECT_IP' | 'STORY_DETAILS' | 'ROLE_SELECTION' | 'SELECT_START_NODE' | 'OC_QUESTIONS';
 type CharacterMode = 'CANON' | 'OC';
 type OcStep = 'CONCEPT' | 'QUESTIONS' | 'IMAGE_GEN';
-
-// Mapping categories to Chinese for display
-const CATEGORY_MAP: Record<string, string> = {
-  'Fairy Tale': '童话故事',
-  'Western Fantasy': '西方奇幻',
-  'Eastern Fantasy': '东方玄幻',
-  'Modern Urban': '现代都市',
-  'Mystery & Horror': '悬疑恐怖',
-  'War': '战争',
-  'Western': '西部',
-  'Science Fiction': '科幻'
-};
 
 export default function Home() {
   const { user, loading: authLoading } = useSupabase();
@@ -39,12 +33,10 @@ export default function Home() {
   const [loadingImage, setLoadingImage] = useState(false);
   const [customInput, setCustomInput] = useState('');
   const [sessionId, setSessionId] = useState<string>(() => {
-    // 从localStorage加载sessionId，防止页面刷新时丢失
     return typeof window !== 'undefined' ? localStorage.getItem('gameSessionId') || '' : '';
   });
   const [gameRecordId, setGameRecordId] = useState<number | null>(null);
   
-  // Setup State
   const [setupStep, setSetupStep] = useState<SetupStep>('SELECT_IP');
   const [ipName, setIpName] = useState('');
   const [ipSummary, setIpSummary] = useState('');
@@ -52,12 +44,12 @@ export default function Home() {
   const [ipCategory, setIpCategory] = useState('');
   const [ipOriginLang, setIpOriginLang] = useState('');
   
-  // Character Selection State
   const [charMode, setCharMode] = useState<CharacterMode>('CANON');
   const [characterName, setCharacterName] = useState('');
+  const [canonCharacterName, setCanonCharacterName] = useState('');
+  const [ocCharacterName, setOcCharacterName] = useState('');
   const [canonValidationMsg, setCanonValidationMsg] = useState('');
   
-  // OC State
   const [ocStep, setOcStep] = useState<OcStep>('CONCEPT');
   const [ocQuestions, setOcQuestions] = useState<string[]>([]);
   const [ocAnswers, setOcAnswers] = useState<string[]>([]);
@@ -66,48 +58,37 @@ export default function Home() {
   const [isRegeneratingOc, setIsRegeneratingOc] = useState(false);
   const [finalOcProfile, setFinalOcProfile] = useState<string>('');
   const [selectedArtStyle, setSelectedArtStyle] = useState<ArtStyle>(DEFAULT_ART_STYLE);
+  const [showArtStyles, setShowArtStyles] = useState(false);
+  const [showEndingSummary, setShowEndingSummary] = useState(false);
 
-  // Start Node State
   const [plotNodes, setPlotNodes] = useState<string[]>([]);
   const [customStartNode, setCustomStartNode] = useState('');
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 检查用户登录状态 - 匿名用户不需要跳转
-  // useEffect(() => {
-  //   if (!authLoading && !user) {
-  //     router.push('/login');
-  //   }
-  // }, [user, authLoading, router]);
-
-  // 处理继续游戏逻辑
   useEffect(() => {
     if (!authLoading && user && sessionId && typeof window !== 'undefined') {
       const continueGame = localStorage.getItem('continueGame');
       const searchParams = new URLSearchParams(window.location.search);
       
       if (continueGame === 'true' || searchParams.get('continue') === 'true') {
-        // 清除继续游戏标记和URL参数
         localStorage.removeItem('continueGame');
         localStorage.removeItem('currentIpName');
         localStorage.removeItem('currentCharacterName');
         
-        // 移除URL参数，防止重复触发
         if (searchParams.get('continue') === 'true') {
           searchParams.delete('continue');
           const newUrl = window.location.pathname + (searchParams.toString() ? '?' + searchParams.toString() : '');
           window.history.replaceState({}, '', newUrl);
         }
         
-        // 获取游戏信息
         const ipName = localStorage.getItem('currentIpName') || '';
         const characterName = localStorage.getItem('currentCharacterName') || '';
         
-        // 设置游戏信息
         setIpName(ipName);
         setCharacterName(characterName);
         
-        // 加载游戏状态
         loadGameState();
       }
     }
@@ -118,7 +99,6 @@ export default function Home() {
     
     setLoading(true);
     try {
-      // 获取当前游戏状态
       const response = await fetch('/api/get-game-state', {
         method: 'POST',
         headers: {
@@ -131,10 +111,35 @@ export default function Home() {
         const data = await response.json();
         setStoryNode(data.storyNode);
         setStatus(GameStatus.PLAYING);
-        setShowChoices(true); // 继续游戏后立即显示选项
+        setShowChoices(true);
+        
+        setLoadingImage(true);
+        try {
+          const imageResponse = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              sessionId,
+              narrative: data.storyNode.narrative,
+              isOcPortrait: false,
+            }),
+          });
+          
+          if (imageResponse.ok) {
+            const image = await imageResponse.json();
+            if (image && typeof image === 'string' && image.startsWith('data:')) {
+              setSceneImage(image);
+            }
+          }
+        } catch (imageError) {
+          console.error("Error generating scene image:", imageError);
+        } finally {
+          setLoadingImage(false);
+        }
       } else {
         console.error('加载游戏状态失败');
-        // 如果加载失败，清除sessionId
         if (typeof window !== 'undefined') {
           localStorage.removeItem('gameSessionId');
         }
@@ -142,7 +147,6 @@ export default function Home() {
       }
     } catch (error) {
       console.error('加载游戏状态失败:', error);
-      // 如果加载失败，清除sessionId
       if (typeof window !== 'undefined') {
         localStorage.removeItem('gameSessionId');
       }
@@ -155,7 +159,6 @@ export default function Home() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // 清除游戏会话
       handleRestart();
     } catch (error) {
       console.error('退出登录失败:', error);
@@ -179,14 +182,12 @@ export default function Home() {
         body: JSON.stringify({ ipName }),
       });
       const result = await response.json();
-      console.log(result)
       if (result.isExist) {
-        setIpSummary(result.abstract || "无简介");
-        setIpAuthor(result.author || "佚名");
-        setIpCategory(result.category || "其他");
+        setIpSummary(result.abstract || "No summary available");
+        setIpAuthor(result.author || "Unknown");
+        setIpCategory(result.category || "Other");
         setIpOriginLang(result.originalLanguage || "");
-        setSetupStep('SELECT_CHARACTER');
-        // Reset character state
+        setSetupStep('STORY_DETAILS');
         setCharMode('CANON');
         setCharacterName('');
         setOcStep('CONCEPT');
@@ -197,11 +198,11 @@ export default function Home() {
         setPlotNodes([]);
         setCustomStartNode('');
       } else {
-        alert(`无法找到作品《${ipName}》或该作品不符合收录标准。请尝试更精确的名称。`);
+        alert(`Cannot find the work "${ipName}" or it does not meet the inclusion criteria. Please try a more precise name.`);
       }
     } catch (error) {
       console.error("IP Validation failed", error);
-      alert("验证服务暂时不可用，请重试。");
+      alert("Validation service is temporarily unavailable, please try again.");
     } finally {
       setLoading(false);
     }
@@ -213,25 +214,23 @@ export default function Home() {
     let currentUser = user;
     let isAnonymous = false;
     
-    // 如果用户未登录，创建匿名用户
     if (!currentUser) {
       setLoading(true);
       try {
         const { data, error } = await supabase.auth.signInAnonymously();
         if (error) {
           console.error('匿名登录失败:', error);
-          alert('无法创建匿名用户，请尝试登录后重试');
+          alert('Unable to create anonymous user, please try logging in');
           setLoading(false);
           return;
         }
-        // 获取当前用户信息
         const { data: userData } = await supabase.auth.getUser();
         currentUser = userData.user;
         isAnonymous = true;
         console.log('匿名用户创建成功:', currentUser?.id);
       } catch (error) {
         console.error('匿名登录异常:', error);
-        alert('创建匿名用户时发生错误');
+        alert('Error creating anonymous user');
         setLoading(false);
         return;
       }
@@ -257,18 +256,71 @@ export default function Home() {
       const { sessionId: newSessionId, gameRecordId: newGameRecordId, ...initialNode } = data;
       setSessionId(newSessionId);
       setGameRecordId(newGameRecordId);
-      // 存储 sessionId 到 localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('gameSessionId', newSessionId);
       }
       setStoryNode(initialNode);
       setStatus(GameStatus.PLAYING);
       setShowChoices(false);
+      
+      setLoadingImage(true);
+      try {
+        const imageResponse = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            sessionId: newSessionId,
+            narrative: initialNode.narrative,
+            isOcPortrait: false,
+          }),
+        });
+        
+        if (imageResponse.ok) {
+          const image = await imageResponse.json();
+          if (image && typeof image === 'string' && image.startsWith('data:')) {
+            setSceneImage(image);
+          }
+        }
+      } catch (imageError) {
+        console.error("Error generating initial scene image:", imageError);
+      } finally {
+        setLoadingImage(false);
+      }
     } catch (error) {
       console.error("Error starting game", error);
-      alert("无法连接到万界枢纽 (API 错误)，请检查网络连接。");
-      setLoading(false); // Only reset loading if there is an error
+      alert("Unable to connect to the world hub (API error), please check your network connection.");
+      setLoading(false);
     }
+  };
+
+  const handleConfirmCharacterImage = async () => {
+    if (!ocImage) {
+      alert('Please generate a character image first');
+      return;
+    }
+    
+    await handleGeneratePlotNodes();
+    setSetupStep('SELECT_START_NODE');
+  };
+
+  const handleEnterWorldFromNodeSelection = async () => {
+    let startNode = '';
+    
+    if (customStartNode.trim()) {
+      startNode = customStartNode.trim();
+      setSelectedNodeId(null);
+    } else if (selectedNodeId !== null && plotNodes[selectedNodeId]) {
+      startNode = plotNodes[selectedNodeId];
+    }
+    
+    if (!startNode) {
+      alert('Please select a starting point or enter your own');
+      return;
+    }
+    
+    await handleStartGame(startNode);
   };
 
   const handleVerifyAndStartCanon = async () => {
@@ -284,17 +336,13 @@ export default function Home() {
         body: JSON.stringify({ ipName, characterName }),
       });
       const result = await response.json();
-      console.log(result);
       if (result.isExist) {
-        // Use extracted appearance for consistent visuals
         if (result.appearance) {
-          // Store appearance for later use
           setOcVisualDesc(result.appearance);
         } else {
           setOcVisualDesc(""); 
         }
         
-        // 为原著角色生成形象描述
         const profileResponse = await fetch('/api/generate-canon-profile', {
           method: 'POST',
           headers: {
@@ -304,15 +352,14 @@ export default function Home() {
         });
         const profile = await profileResponse.json();
         setFinalOcProfile(profile);
-        console.log(result.appearance);
-        // 为原著角色生成场景形象（不是OC肖像）
+        
         const imageResponse = await fetch('/api/generate-image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            sessionId: 'canon-character-preview', // 为原著角色提供临时sessionId
+            sessionId: 'canon-character-preview',
             narrative: "Character portrait, facing camera, official artwork style.", 
             isOcPortrait: false,
             ocVisualDescription: result.appearance || ""
@@ -326,32 +373,32 @@ export default function Home() {
           }
         }
         
-        // 进入形象生成步骤
-        setOcStep('IMAGE_GEN');
+        await handleGeneratePlotNodes();
+        setSetupStep('SELECT_START_NODE');
       } else {
-        setCanonValidationMsg("该角色似乎不属于此世界，请检查拼写或尝试创建原创角色。");
+        setCanonValidationMsg("This character does not seem to belong to this world. Please check the spelling or try creating an original character.");
       }
     } catch (error) {
        console.error(error);
-       alert("验证失败，请重试");
+       alert("Validation failed, please try again");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGenerateQuestions = async () => {
-    if (!characterName.trim()) {
-      alert("请填写角色名称");
+  const handleGenerateQuestions = async (nameOverride?: string) => {
+    const nameToUse = nameOverride || characterName;
+    if (!nameToUse.trim()) {
+      alert("Please enter a character name");
       return;
     }
-    setLoading(true);
     try {
       const response = await fetch('/api/generate-oc-questions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ipName, characterName, concept: '' }),
+        body: JSON.stringify({ ipName, characterName: nameToUse, concept: '' }),
       });
       const questions = await response.json();
       setOcQuestions(questions);
@@ -359,17 +406,16 @@ export default function Home() {
       const initialAnswers = new Array(questions.length).fill('');
       questions.forEach((q: string, i: number) => {
         if (q.toLowerCase() === 'name') {
-          initialAnswers[i] = characterName;
+          initialAnswers[i] = nameToUse;
         }
       });
       setOcAnswers(initialAnswers);
       
       setOcStep('QUESTIONS');
+      setSetupStep('OC_QUESTIONS');
     } catch (error) {
       console.error(error);
-      alert("生成问题失败，请重试");
-    } finally {
-      setLoading(false);
+      alert("Failed to generate questions, please try again");
     }
   };
 
@@ -378,7 +424,6 @@ export default function Home() {
     try {
       let visualPrompt = ocVisualDesc;
       
-      // 如果是OC角色，生成视觉描述
       if (charMode === 'OC') {
         const profile = `
 Name: ${characterName}
@@ -386,8 +431,7 @@ Details:
 ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         `.trim();
         setFinalOcProfile(profile);
-
-        // Generate visual prompt for OC
+        console.log(profile)
         const visualPromptResponse = await fetch('/api/generate-oc-visual-prompt', {
           method: 'POST',
           headers: {
@@ -399,7 +443,6 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         setOcVisualDesc(visualPrompt);
       }
 
-      // Generate image
       const imageResponse = await fetch('/api/generate-image', {
         method: 'POST',
         headers: {
@@ -414,7 +457,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       });
       
       if (!imageResponse.ok) {
-        throw new Error(`图片生成失败: ${imageResponse.status}`);
+        throw new Error(`Image generation failed: ${imageResponse.status}`);
       }
       
       const image = await imageResponse.json();
@@ -426,17 +469,19 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         console.warn('Invalid image response format:', image);
         setOcImage(null);
       }
+      
+      await handleGeneratePlotNodes();
       setOcStep('IMAGE_GEN');
+      setSetupStep('SELECT_START_NODE');
     } catch (error) {
       console.error(error);
-      alert("形象生成失败，请重试");
+      alert("Character image generation failed, please try again");
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegenerateOcImage = async () => {
-    if (!ocVisualDesc) return;
     setIsRegeneratingOc(true);
     try {
       const imageResponse = await fetch('/api/generate-image', {
@@ -453,43 +498,159 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       });
       
       if (!imageResponse.ok) {
-        throw new Error(`图片生成失败: ${imageResponse.status}`);
+        throw new Error(`Image generation failed: ${imageResponse.status}`);
       }
       
       const image = await imageResponse.json();
-      console.log('Regenerated image response:', image);
-      
       if (image && typeof image === 'string' && image.startsWith('data:')) {
         setOcImage(image);
       } else {
         console.warn('Invalid image response format:', image);
-        setOcImage(null);
       }
     } catch (error) {
       console.error(error);
+      alert("Failed to regenerate image, please try again");
     } finally {
       setIsRegeneratingOc(false);
     }
   };
 
-  const handleConfirmCharacterAndGenerateNodes = async () => {
+  const handleRestart = () => {
+    setStatus(GameStatus.IDLE);
+    setStoryNode(null);
+    setShowChoices(false);
+    setSceneImage(null);
+    setCustomInput('');
+    setSetupStep('SELECT_IP');
+    setIpName('');
+    setIpSummary('');
+    setIpAuthor('');
+    setIpCategory('');
+    setIpOriginLang('');
+    setCharMode('CANON');
+    setCharacterName('');
+    setCanonCharacterName('');
+    setOcCharacterName('');
+    setCanonValidationMsg('');
+    setOcStep('CONCEPT');
+    setOcQuestions([]);
+    setOcAnswers([]);
+    setOcImage(null);
+    setOcVisualDesc('');
+    setFinalOcProfile('');
+    setPlotNodes([]);
+    setCustomStartNode('');
+    setSelectedNodeId(null);
+    setSelectedArtStyle(DEFAULT_ART_STYLE);
+    setShowArtStyles(false);
+    setShowEndingSummary(false);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('gameSessionId');
+    }
+  };
+
+  const handleGoToSummary = () => {
+    setShowEndingSummary(true);
+  };
+
+  const handleSelectChoice = async (choice: Choice) => {
+    setShowChoices(false);
+    try {
+      const response = await fetch('/api/make-choice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId, choiceText: choice.text }),
+      });
+      const data = await response.json();
+      setStoryNode(data);
+      setShowChoices(false);
+      
+      setLoadingImage(true);
+      try {
+        const imageResponse = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            sessionId,
+            narrative: data.narrative,
+            isOcPortrait: false,
+          }),
+        });
+        
+        if (imageResponse.ok) {
+          const image = await imageResponse.json();
+          if (image && typeof image === 'string' && image.startsWith('data:')) {
+            setSceneImage(image);
+          }
+        }
+      } catch (imageError) {
+        console.error("Error generating scene image:", imageError);
+      } finally {
+        setLoadingImage(false);
+      }
+    } catch (error) {
+      console.error("Error making choice", error);
+      alert("Failed to process your choice, please try again.");
+      setShowChoices(true);
+    }
+  };
+
+  const handleSubmitCustomInput = async () => {
+    if (!customInput.trim()) return;
+    setShowChoices(false);
+    try {
+      const response = await fetch('/api/make-choice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId, choiceText: customInput }),
+      });
+      const data = await response.json();
+      setStoryNode(data);
+      setCustomInput('');
+      setShowChoices(false);
+      
+      setLoadingImage(true);
+      try {
+        const imageResponse = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            sessionId,
+            narrative: data.narrative,
+            isOcPortrait: false,
+          }),
+        });
+        
+        if (imageResponse.ok) {
+          const image = await imageResponse.json();
+          if (image && typeof image === 'string' && image.startsWith('data:')) {
+            setSceneImage(image);
+          }
+        }
+      } catch (imageError) {
+        console.error("Error generating scene image:", imageError);
+      } finally {
+        setLoadingImage(false);
+      }
+    } catch (error) {
+      console.error("Error submitting custom input", error);
+      alert("Failed to process your input, please try again.");
+      setShowChoices(true);
+    }
+  };
+
+  const handleGeneratePlotNodes = async () => {
     setLoading(true);
     try {
-      let profile = finalOcProfile;
-      
-      // 如果是OC角色，重新构建档案
-      if (charMode === 'OC') {
-        profile = finalOcProfile || `
-Questions & Answers:
-${ocQuestions.map((q, i) => `Q: ${q}\nA: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
-        `.trim();
-      }
-      
-      // 添加画风信息到档案
-      const profileWithArtStyle = `${profile}\nartStyle: ${selectedArtStyle.name}`;
-      setFinalOcProfile(profileWithArtStyle);
-
-      const nodesResponse = await fetch('/api/generate-plot-nodes', {
+      const response = await fetch('/api/generate-plot-nodes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -497,743 +658,191 @@ ${ocQuestions.map((q, i) => `Q: ${q}\nA: ${ocAnswers[i] || 'Unknown'}`).join('\n
         body: JSON.stringify({ 
           ipName, 
           characterName, 
-          charMode: charMode,
-          ocProfile: charMode === 'OC' ? profileWithArtStyle : undefined 
+          charMode, 
+          ocProfile: finalOcProfile 
         }),
       });
-      const nodes = await nodesResponse.json();
+      const nodes = await response.json();
       setPlotNodes(nodes);
-      setSetupStep('SELECT_START_NODE');
+      setCustomStartNode('');
+      setSelectedNodeId(null);
     } catch (error) {
-      console.error(error);
-      alert("生成剧情节点失败，请重试");
+      console.error("Error generating plot nodes", error);
+      alert("Failed to generate plot nodes, please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChoice = async (text: string) => {
-    setLoading(true);
-    setShowChoices(false);
-    setSceneImage(null);
-    setCustomInput('');
-    try {
-      const response = await fetch('/api/make-choice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sessionId, choiceText: text }),
-      });
-      const nextNode = await response.json();
-      setStoryNode(nextNode);
-      
-      // 判断是否为匿名用户
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const isAnonymous = currentUser?.app_metadata?.provider === 'anonymous' || currentUser?.app_metadata?.is_anonymous === true;
-      
-      if (nextNode.status === 'GAME_OVER') {
-        setStatus(GameStatus.GAME_OVER);
-        // 匿名用户不需要更新游戏状态
-        if (gameRecordId && !isAnonymous) {
-          await fetch('/api/update-game-status', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              gameRecordId, 
-              status: 2, // 2: 未通关
-              characterSummary: nextNode.characterAnalysis
-            }),
-          });
-        }
-      } else if (nextNode.status === 'VICTORY') {
-        setStatus(GameStatus.VICTORY);
-        // 匿名用户不需要更新游戏状态
-        if (gameRecordId && !isAnonymous) {
-          await fetch('/api/update-game-status', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              gameRecordId, 
-              status: 1, // 1: 已通关
-              characterSummary: nextNode.characterAnalysis
-            }),
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error making choice", error);
-      alert("时空乱流干扰了连接 (API 错误)，请重试。");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCustomAction = () => {
-    if (!customInput.trim()) return;
-    handleChoice(customInput);
-  };
-
-  const handleRestart = () => {
-    setStoryNode(null);
-    setSceneImage(null);
-    setStatus(GameStatus.IDLE);
-    setSetupStep('SELECT_IP');
-    setCustomInput('');
-    setSessionId('');
-    setGameRecordId(null);
-    // 清除 localStorage 中的 sessionId
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('gameSessionId');
-    }
-    setIpSummary('');
-    setIpAuthor('');
-    setIpCategory('');
-    setIpOriginLang('');
-    setOcImage(null);
-    setOcVisualDesc('');
-    setFinalOcProfile('');
-    setPlotNodes([]);
-    setCustomStartNode('');
-  };
-
-  const onNarrativeComplete = useCallback(() => {
-    setShowChoices(true);
-    setLoading(false); // Ensure loading is off when text finishes
-  }, []);
-
   useEffect(() => {
-    let isMounted = true;
-    if (storyNode?.narrative && sessionId) {
-      setLoadingImage(true);
-      fetch('/api/generate-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          sessionId,
-          narrative: storyNode.narrative,
-          isOcPortrait: false,
-          ocVisualDescription: ocVisualDesc
-        }),
-      })
-      .then(response => response.json())
-      .then(image => {
-        if (isMounted) {
-           setSceneImage(image);
-           setLoadingImage(false);
-        }
-      })
-      .catch(error => {
-        console.error("Failed to generate image", error);
-        if (isMounted) {
-          setLoadingImage(false);
-        }
-      });
+    if (status === GameStatus.PLAYING && storyNode) {
+      const timer = setTimeout(() => {
+        setShowChoices(true);
+      }, 1000);
+      return () => clearTimeout(timer);
     }
-    return () => { isMounted = false; };
-  }, [storyNode, ocVisualDesc, sessionId]);
+  }, [status, storyNode]);
 
-  useEffect(() => {
-    if (bottomRef.current) {
-      setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [storyNode, showChoices, loading, sceneImage, setupStep, ocStep]);
-
-  const renderContent = () => {
+  const renderContent = useCallback(() => {
     if (status === GameStatus.IDLE) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-float px-4">
-          {/* 用户登录状态 */}
-          <div className="absolute top-4 right-4 flex items-center gap-3">
-            {user ? (
-              <div className="flex items-center gap-2 bg-ocean-900/60 px-4 py-2 rounded-full border border-ocean-700/50">
-                <User size={18} className="text-ocean-400" />
-                <span className="text-ocean-100 text-sm font-serif">{user.email?.split('@')[0]}</span>
-                <Button 
-                  onClick={handleLogout} 
-                  variant="secondary" 
-                  className="px-3 py-1 text-xs"
-                >
-                  <LogOut size={14} />
-                </Button>
-              </div>
-            ) : (
-              <Button 
-                onClick={() => router.push('/login')} 
-                className="px-4 py-2 text-sm"
+        <div className="flex flex-col items-center justify-center w-full h-full relative z-10 pb-10 overflow-hidden">
+          {user ? (
+            <>
+              <button 
+                onClick={() => router.push('/archive')}
+                className="absolute top-6 right-24 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
               >
-                <User size={16} className="mr-2" />
-                登录
-              </Button>
-            )}
-          </div>
-          
-          <div className="relative">
-            <div className="absolute -inset-4 bg-ocean-400/20 rounded-full blur-xl animate-pulse-slow"></div>
-            <BookOpen size={80} className="text-ocean-100 relative z-10" />
-          </div>
-          <div>
-            <h1 className="text-4xl md:text-6xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-ocean-400 mb-4 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
-              万界传说
-            </h1>
-            <p className="text-ocean-100/80 text-lg font-sans max-w-lg mx-auto">
-              {setupStep === 'SELECT_IP' && "第一步：连接时空坐标。输入你向往的世界名称。"}
-              {setupStep === 'SELECT_CHARACTER' && "第二步：塑造化身。选择你的降临身份。"}
-              {setupStep === 'SELECT_START_NODE' && "第三步：选择命运锚点。你将从哪里开始故事？"}
-            </p>
-          </div>
+                Records
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="absolute top-6 right-8 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => router.push('/login')}
+              className="absolute top-6 right-8 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
+            >
+              Log In
+            </button>
+          )}
 
-          <div className="w-full max-w-xl bg-ocean-900/40 p-6 rounded-xl border border-ocean-700/50 backdrop-blur-sm shadow-xl transition-all duration-500 relative">
-            
-            {/* Loading Overlay during critical transitions */}
-            {loading && status === GameStatus.IDLE && setupStep === 'SELECT_START_NODE' && storyNode === null && (
-               <div className="absolute inset-0 z-50 bg-ocean-900/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-300">
-                  <div className="w-16 h-16 border-4 border-ocean-300 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <h3 className="text-xl font-serif text-white mb-2">正在重构世界线...</h3>
-                  <p className="text-ocean-300 text-sm animate-pulse">AI 正在根据你的选择推演因果，请稍候。</p>
-               </div>
-            )}
+          {setupStep === 'SELECT_IP' && (
+            <IpSelectionPage
+              ipName={ipName}
+              onIpNameChange={setIpName}
+              onVerifyIp={handleVerifyIp}
+              loading={loading}
+            />
+          )}
 
-            {setupStep === 'SELECT_IP' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                 <div className="space-y-2 text-left">
-                  <label className="text-ocean-100 text-sm font-serif flex items-center gap-2">
-                    <BookOpen size={16} /> 目标世界 (IP名称)
-                  </label>
-                  <input 
-                    type="text" 
-                    value={ipName}
-                    onChange={(e) => setIpName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleVerifyIp()}
-                    placeholder="例如：三体、哈利波特、权力的游戏..."
-                    className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
-                    autoFocus
-                  />
-                  <p className="text-xs text-ocean-400/60 pl-1">AI 将验证该世界是否存在。</p>
-                </div>
-                
-                <Button onClick={handleVerifyIp} isLoading={loading} className="w-full text-lg mt-4 flex justify-between items-center group">
-                  <span>验证并继续</span>
-                  <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </div>
-            )}
+          {setupStep === 'STORY_DETAILS' && (
+            <StoryDetailsPage
+              ipName={ipName}
+              ipSummary={ipSummary}
+              ipAuthor={ipAuthor}
+              ipCategory={ipCategory}
+              ipOriginLang={ipOriginLang}
+              onBack={() => setSetupStep('SELECT_IP')}
+              onNext={() => setSetupStep('ROLE_SELECTION')}
+            />
+          )}
 
-            {setupStep === 'SELECT_CHARACTER' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                
-                {/* IP Info - Enhanced Card */}
-                <div className="bg-ocean-800/40 p-5 rounded-lg border border-ocean-600/30 text-left relative overflow-hidden group hover:bg-ocean-800/60 transition-colors shadow-inner">
-                   {/* Header Row: Title & Confirmation */}
-                   <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-2 text-green-300">
-                          <CheckCircle2 size={18} />
-                          <span className="text-xs font-bold uppercase tracking-wider">世界已确认</span>
-                      </div>
-                      
-                       {ipCategory && (
-                         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-ocean-700/60 text-ocean-200 border border-ocean-600/50 flex items-center gap-1">
-                           <Tag size={10} />
-                           {CATEGORY_MAP[ipCategory] || ipCategory}
-                         </span>
-                       )}
-                   </div>
+          {setupStep === 'ROLE_SELECTION' && ocStep !== 'IMAGE_GEN' && (
+            <RoleSelectionPage
+              canonCharacterName={canonCharacterName}
+              ocCharacterName={ocCharacterName}
+              canonValidationMsg={canonValidationMsg}
+              onCanonCharacterNameChange={(value) => {
+                setCanonCharacterName(value);
+                setCharacterName(value);
+              }}
+              onOcCharacterNameChange={(value) => {
+                setOcCharacterName(value);
+                setCharacterName(value);
+              }}
+              onCanonSubmit={() => {
+                setCharacterName(canonCharacterName);
+                handleVerifyAndStartCanon();
+              }}
+              onOcSubmit={() => {
+                setCharacterName(ocCharacterName);
+                setCharMode('OC');
+                handleGenerateQuestions(ocCharacterName);
+              }}
+              onBack={() => setSetupStep('STORY_DETAILS')}
+            />
+          )}
 
-                   <h3 className="text-xl font-serif text-white mb-1">{ipName}</h3>
-                   
-                   {(ipAuthor || ipOriginLang) && (
-                     <div className="flex items-center gap-3 text-xs text-ocean-300 mb-3 italic">
-                        {ipAuthor && (
-                          <div className="flex items-center gap-1">
-                             <Feather size={12} />
-                             <span>{ipAuthor}</span>
-                          </div>
-                        )}
-                        
-                        {ipOriginLang && (
-                          <div className="flex items-center gap-1 border-l border-ocean-600 pl-3">
-                             <Globe size={12} />
-                             <span>{ipOriginLang}</span>
-                          </div>
-                        )}
-                     </div>
-                   )}
-
-                   <p className="text-sm text-ocean-100/80 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all duration-300 cursor-help border-l-2 border-ocean-500/30 pl-3 font-story">
-                     {ipSummary}
-                   </p>
-                </div>
-
-                {/* Character Mode Tabs */}
-                <div className="flex p-1 bg-ocean-900/60 rounded-lg border border-ocean-700">
-                  <button 
-                    onClick={() => { setCharMode('CANON'); setCharacterName(''); setCanonValidationMsg(''); }}
-                    className={`flex-1 py-2 rounded-md text-sm font-serif transition-all ${charMode === 'CANON' ? 'bg-ocean-700 text-white shadow-md' : 'text-ocean-400 hover:text-white'}`}
-                  >
-                    原著角色
-                  </button>
-                  <button 
-                    onClick={() => { setCharMode('OC'); setCharacterName(''); setOcStep('CONCEPT'); }}
-                    className={`flex-1 py-2 rounded-md text-sm font-serif transition-all ${charMode === 'OC' ? 'bg-ocean-700 text-white shadow-md' : 'text-ocean-400 hover:text-white'}`}
-                  >
-                    原创角色 (OC)
-                  </button>
-                </div>
-
-                {/* Canon Character Flow */}
-                {charMode === 'CANON' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="space-y-2 text-left">
-                      <label className="text-ocean-100 text-sm font-serif flex items-center gap-2">
-                        <User size={16} /> 角色名称
-                      </label>
-                      <input 
-                        type="text" 
-                        value={characterName}
-                        onChange={(e) => setCharacterName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleVerifyAndStartCanon()}
-                        placeholder="例如：罗辑、马尔福..."
-                        className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
-                        autoFocus
-                      />
-                      {canonValidationMsg && (
-                        <p className="text-xs text-red-300 pl-1 flex items-center gap-1">
-                          <AlertCircle size={12} /> {canonValidationMsg}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-3 pt-2">
-                      <Button onClick={() => setSetupStep('SELECT_IP')} variant="secondary" className="px-4">
-                        <ArrowLeft size={20} />
-                      </Button>
-                      <Button onClick={handleVerifyAndStartCanon} isLoading={loading} className="flex-1 text-lg group">
-                        <span className="flex items-center justify-center gap-2">
-                          验证并下一步 <Sparkles size={18} className="group-hover:animate-spin" />
-                        </span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* OC Flow */}
-                {charMode === 'OC' && (
-                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                     {ocStep === 'CONCEPT' && (
-                       <div className="space-y-4">
-                          <div className="space-y-2 text-left">
-                            <label className="text-ocean-100 text-sm font-serif flex items-center gap-2">
-                              <UserPlus size={16} /> 角色名称
-                            </label>
-                            <input 
-                              type="text" 
-                              value={characterName}
-                              onChange={(e) => setCharacterName(e.target.value)}
-                              placeholder="你的原创角色名字"
-                              className="w-full bg-ocean-900/80 border border-ocean-600 rounded-lg px-4 py-3 text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
-                            />
-                          </div>
-                          
-                          <div className="flex gap-3 pt-2">
-                            <Button onClick={() => setSetupStep('SELECT_IP')} variant="secondary" className="px-4">
-                              <ArrowLeft size={20} />
-                            </Button>
-                            <Button onClick={handleGenerateQuestions} isLoading={loading} className="flex-1 text-lg group">
-                              <span className="flex items-center justify-center gap-2">
-                                下一步：完善设定 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                              </span>
-                            </Button>
-                          </div>
-                       </div>
-                     )}
-                     
-                     {ocStep === 'QUESTIONS' && (
-                       <div className="space-y-4">
-                          <div className="bg-ocean-800/20 p-3 rounded text-left border border-ocean-700/50">
-                             <h4 className="text-ocean-100 text-sm font-bold flex items-center gap-2 mb-2">
-                               <FileQuestion size={16} className="text-purple-300"/> 设定完善问卷
-                             </h4>
-                             <p className="text-xs text-ocean-400/80">请回答以下问题，帮助 AI 更好地理解你的角色。</p>
-                          </div>
-                          
-                          <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
-                            {ocQuestions.map((q, idx) => (
-                              <div key={idx} className="space-y-1 text-left">
-                                <label className="text-ocean-200 text-sm font-story">{idx + 1}. {q}</label>
-                                <input
-                                  type="text"
-                                  value={ocAnswers[idx] || ''}
-                                  onChange={(e) => {
-                                    const newAnswers = [...ocAnswers];
-                                    newAnswers[idx] = e.target.value;
-                                    setOcAnswers(newAnswers);
-                                  }}
-                                  className="w-full bg-ocean-900/60 border border-ocean-600/50 rounded px-3 py-2 text-white text-sm focus:border-ocean-400 focus:outline-none font-story"
-                                />
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="flex gap-3 pt-2">
-                            <Button onClick={() => setOcStep('CONCEPT')} variant="secondary" className="px-4">
-                              <ArrowLeft size={20} />
-                            </Button>
-                            <Button onClick={handleGenerateCharacterImage} isLoading={loading} className="flex-1 text-lg group">
-                              <span className="flex items-center justify-center gap-2">
-                                生成形象 <Camera size={18} className="group-hover:scale-110 transition-transform" />
-                              </span>
-                            </Button>
-                          </div>
-                       </div>
-                     )}
-                   </div>
-                )}
-
-                {/* 形象生成页面（OC和原著角色共用） */}
-                {ocStep === 'IMAGE_GEN' && (
-                   <div className="space-y-6 text-center animate-in fade-in zoom-in duration-500">
-                     <div className="relative mx-auto w-48 h-48 md:w-64 md:h-64 rounded-xl overflow-hidden border-2 border-ocean-400/50 shadow-[0_0_30px_rgba(96,165,250,0.3)] bg-ocean-900/50">
-                       {loading || isRegeneratingOc ? (
-                         <div className="w-full h-full flex flex-col items-center justify-center text-ocean-400/50">
-                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-400"></div>
-                           <p className="text-xs mt-2">生成中...</p>
-                         </div>
-                       ) : ocImage ? (
-                         <Image src={ocImage} alt="Character" className="w-full h-full object-cover" fill />
-                       ) : (
-                         <div className="w-full h-full flex flex-col items-center justify-center text-ocean-400/50">
-                           <User size={48} className="mb-2"/>
-                           <p className="text-xs">点击重绘生成形象</p>
-                         </div>
-                       )}
-                       <div className="absolute inset-0 border-4 border-ocean-900/20 rounded-xl pointer-events-none"></div>
-                     </div>
-                     
-                     <div>
-                        <h3 className="text-xl font-serif text-white">{characterName}</h3>
-                        <p className="text-sm text-ocean-300">{charMode === 'OC' ? '原创角色' : '原著角色'}</p>
-                     </div>
-
-                     {/* 画风选择器 */}
-                     <div className="bg-ocean-900/40 border border-ocean-700/50 rounded-xl p-4">
-                       <h4 className="text-sm font-serif text-ocean-200 mb-3 flex items-center gap-2">
-                         <PenTool size={16} /> 选择画风
-                       </h4>
-                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                         {ART_STYLES.map((style) => (
-                           <button
-                             key={style.id}
-                             onClick={() => setSelectedArtStyle(style)}
-                             className={`p-2 rounded-lg text-xs transition-all duration-200 ${
-                               selectedArtStyle.id === style.id
-                                 ? 'bg-ocean-600 text-white border border-ocean-400'
-                                 : 'bg-ocean-800/50 text-ocean-200 border border-ocean-700/50 hover:bg-ocean-700/50'
-                             }`}
-                             title={style.description}
-                           >
-                             {style.name}
-                           </button>
-                         ))}
-                       </div>
-                       <p className="text-xs text-ocean-400 mt-2">当前画风: {selectedArtStyle.name}</p>
-                     </div>
-
-                     <div className="flex gap-3 pt-2">
-                        <Button 
-                          onClick={handleRegenerateOcImage} 
-                          variant="secondary" 
-                          className="flex-1"
-                          isLoading={isRegeneratingOc}
-                          disabled={loading}
-                        >
-                          <RefreshCw size={18} className={`mr-2 ${isRegeneratingOc ? 'animate-spin' : ''}`} /> 重绘
-                        </Button>
-                        <Button onClick={handleConfirmCharacterAndGenerateNodes} isLoading={loading} className="flex-1 group">
-                          <span className="flex items-center justify-center gap-2">
-                            确认并下一步 <ArrowRight size={18} className="group-hover:translate-x-1" />
-                          </span>
-                        </Button>
-                      </div>
-                   </div>
-                )}
-              </div>
-            )}
-
-            {setupStep === 'SELECT_START_NODE' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="text-left space-y-2">
-                  <h3 className="text-lg font-serif text-white flex items-center gap-2">
-                     <MapPin size={20} className="text-yellow-300" /> 命运抉择点
-                  </h3>
-                  <p className="text-sm text-ocean-200">
-                    {charMode === 'CANON' 
-                       ? `检测到 ${characterName} 命运轨迹中的关键时刻。请选择你想要重写或经历的起点。`
-                       : `根据你的角色设定，这些是介入《${ipName}》故事的最佳时机。`
-                    }
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
-                    {plotNodes.map((node, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleStartGame(node)}
-                        disabled={loading}
-                        className="group relative p-4 bg-ocean-800/40 border border-ocean-700 hover:bg-ocean-700/50 hover:border-ocean-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-left transition-all duration-300 overflow-hidden shadow-lg flex items-start gap-3"
-                      >
-                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-ocean-900/50 border border-ocean-500/50 flex items-center justify-center text-xs text-ocean-300 font-serif">
-                          {idx + 1}
-                        </span>
-                        <span className="text-sm md:text-base text-ocean-100 group-hover:text-white leading-relaxed font-story">
-                          {node}
-                        </span>
-                        <div className="absolute inset-0 border border-transparent group-hover:border-ocean-400/30 rounded-lg pointer-events-none transition-all"></div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Manual Input Section */}
-                  <div className="pt-2 border-t border-ocean-700/50">
-                    <div className="flex items-center gap-4 text-ocean-400/50 mb-3 text-xs font-serif tracking-wider uppercase">
-                      <div className="h-px bg-ocean-400/20 flex-1"></div>
-                      <span>或 自定义起点</span>
-                      <div className="h-px bg-ocean-400/20 flex-1"></div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                       <div className="relative flex-1">
-                          <PenTool size={16} className="absolute left-3 top-3.5 text-ocean-400/50" />
-                          <input 
-                            type="text"
-                            value={customStartNode}
-                            onChange={(e) => setCustomStartNode(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && customStartNode.trim() && handleStartGame(customStartNode)}
-                            placeholder="输入你想介入的时间点或事件..."
-                            className="w-full bg-ocean-900/60 border border-ocean-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-ocean-500/70 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
-                            disabled={loading}
-                          />
-                       </div>
-                       <Button 
-                         onClick={() => handleStartGame(customStartNode)} 
-                         disabled={!customStartNode.trim() || loading}
-                         className="px-4"
-                       >
-                         <ArrowRight size={20} />
-                       </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <Button onClick={() => setSetupStep('SELECT_CHARACTER')} variant="secondary" className="w-full" disabled={loading}>
-                    <ArrowLeft size={18} className="mr-2" /> 返回角色调整
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+          {ocStep === 'IMAGE_GEN' ? (
+            <CharacterImagePage
+              characterName={characterName}
+              ocImage={ocImage}
+              loading={loading}
+              isRegeneratingOc={isRegeneratingOc}
+              selectedArtStyle={selectedArtStyle}
+              showArtStyles={showArtStyles}
+              onRegenerateImage={handleRegenerateOcImage}
+              onSelectArtStyle={setSelectedArtStyle}
+              onToggleArtStyles={() => setShowArtStyles(!showArtStyles)}
+              onBack={() => setOcStep(charMode === 'OC' ? 'QUESTIONS' : 'CONCEPT')}
+              onConfirm={handleConfirmCharacterImage}
+            />
+          ) : setupStep === 'SELECT_START_NODE' ? (
+            <PlotNodeSelectionPage
+              plotNodes={plotNodes}
+              customStartNode={customStartNode}
+              selectedNodeId={selectedNodeId}
+              onNodeSelect={setSelectedNodeId}
+              onCustomInputChange={setCustomStartNode}
+              onEnterWorld={handleEnterWorldFromNodeSelection}
+            />
+          ) : setupStep === 'OC_QUESTIONS' && (
+            <OcQuestionnairePage
+              ocQuestions={ocQuestions}
+              ocAnswers={ocAnswers}
+              loading={loading}
+              onAnswerChange={(index, value) => {
+                const newAnswers = [...ocAnswers];
+                newAnswers[index] = value;
+                setOcAnswers(newAnswers);
+              }}
+              onSubmit={handleGenerateCharacterImage}
+              onBack={() => {
+                setOcStep('CONCEPT');
+                setSetupStep('ROLE_SELECTION');
+              }}
+            />
+          )}
         </div>
       );
     }
 
-    return (
-      <div className="w-full max-w-3xl mx-auto space-y-8 pb-12">
-        {storyNode && (
-          <>
-            <div className="flex items-center justify-center gap-2 text-ocean-400/60 text-sm font-serif tracking-widest uppercase mb-[-20px]">
-               {ipName} • {characterName}
-            </div>
+    if (status === GameStatus.PLAYING || status === GameStatus.GAME_OVER || status === GameStatus.VICTORY) {
+      if (showEndingSummary) {
+        return (
+          <EndingSummaryPage
+            storyNode={storyNode}
+            sceneImage={sceneImage}
+            onRestart={handleRestart}
+          />
+        );
+      }
+      return (
+        <GameMainPage
+          storyNode={storyNode}
+          showChoices={showChoices}
+          loading={loading}
+          sceneImage={sceneImage}
+          customInput={customInput}
+          onCustomInputChange={setCustomInput}
+          onChoiceSelect={handleSelectChoice}
+          onCustomInputSubmit={handleSubmitCustomInput}
+          onRestart={handleRestart}
+          onGoToSummary={handleGoToSummary}
+        />
+      );
+    }
 
-            <div className="relative w-full aspect-square md:aspect-video rounded-xl overflow-hidden border border-ocean-400/30 bg-ocean-900/50 shadow-2xl flex items-center justify-center group">
-              {sceneImage ? (
-                <Image 
-                  src={sceneImage} 
-                  alt="Scene visualization" 
-                  className="w-full h-full object-cover animate-in fade-in duration-1000"
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  priority
-                />
-              ) : (
-                <div className="flex flex-col items-center text-ocean-400/50 animate-pulse">
-                  <ImageIcon size={48} className="mb-2" />
-                  <span className="text-sm font-serif">正在具象化现实...</span>
-                </div>
-              )}
-              {/* Overlay gradient */}
-              <div className="absolute inset-0 bg-gradient-to-t from-ocean-900 via-transparent to-transparent opacity-60"></div>
-              
-              {/* Optional: Show OC portrait in corner if exists */}
-              {ocImage && (
-                <div className="absolute bottom-3 right-3 w-16 h-16 rounded-lg border border-ocean-400/50 overflow-hidden shadow-lg opacity-80 group-hover:opacity-100 transition-opacity relative">
-                   <Image src={ocImage} className="w-full h-full object-cover" alt="OC" fill />
-                </div>
-              )}
-            </div>
-
-            <NarrativeDisplay 
-              text={storyNode.narrative} 
-              onComplete={onNarrativeComplete} 
-            />
-            
-            <div className={`transition-opacity duration-700 ${showChoices && !loading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-              {(status === GameStatus.PLAYING) && (
-                 <div className="space-y-6 mt-6">
-                   {/* Preset Choices */}
-                   <div className="grid grid-cols-1 gap-3">
-                     {storyNode.choices && storyNode.choices.map((choice) => (
-                       <button
-                         key={choice.id}
-                         onClick={() => handleChoice(choice.text)}
-                         className="group relative p-4 bg-ocean-800/40 border border-ocean-700 hover:bg-ocean-700/50 hover:border-ocean-400 rounded-lg text-left transition-all duration-300 overflow-hidden shadow-lg"
-                       >
-                         <div className="absolute inset-0 w-0 bg-white/5 transition-all duration-[250ms] ease-out group-hover:w-full"></div>
-                         <div className="relative flex items-center justify-between">
-                           <span className="font-story text-lg text-ocean-100 group-hover:text-white">{choice.text}</span>
-                           <Waves size={18} className="opacity-0 group-hover:opacity-100 transition-opacity text-ocean-400" />
-                         </div>
-                       </button>
-                     ))}
-                   </div>
-
-                   {/* Divider */}
-                   <div className="flex items-center gap-4 text-ocean-400/50">
-                      <div className="h-px bg-ocean-400/20 flex-1"></div>
-                      <span className="font-serif text-sm tracking-wider">或 自由行动</span>
-                      <div className="h-px bg-ocean-400/20 flex-1"></div>
-                   </div>
-
-                   {/* Custom Input */}
-                   <div className="flex gap-2">
-                     <input
-                       type="text"
-                       value={customInput}
-                       onChange={(e) => setCustomInput(e.target.value)}
-                       onKeyDown={(e) => e.key === 'Enter' && handleCustomAction()}
-                       placeholder="描述你想做的事情..."
-                       className="flex-1 bg-ocean-900/50 border border-ocean-700 rounded-lg px-4 py-3 text-ocean-100 placeholder-ocean-500 focus:outline-none focus:border-ocean-400 focus:ring-1 focus:ring-ocean-400 transition-all font-story"
-                       disabled={loading}
-                     />
-                     <button 
-                       onClick={handleCustomAction}
-                       disabled={!customInput.trim() || loading}
-                       className="bg-ocean-700 hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 rounded-lg transition-colors flex items-center justify-center border border-ocean-600"
-                     >
-                       <Send size={20} />
-                     </button>
-                   </div>
-                 </div>
-              )}
-
-              {status !== GameStatus.PLAYING && (
-                <div className="text-center space-y-6 mt-8 p-6 bg-black/30 rounded-xl border border-ocean-500/30 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                  <h2 className={`text-3xl font-serif ${status === GameStatus.VICTORY ? 'text-yellow-300' : 'text-red-300'}`}>
-                    {status === GameStatus.VICTORY ? "传奇的终章" : "命运的断点"}
-                  </h2>
-                  <p className="text-ocean-100 italic text-lg font-story">
-                    {status === GameStatus.VICTORY ? "你在这个世界留下了不朽的传说。" : "旅途虽然中断，但故事尚未结束。"}
-                  </p>
-
-                  {/* Character Analysis Section */}
-                  {storyNode.characterAnalysis && (
-                    <div className="mt-6 p-6 bg-ocean-900/60 border border-ocean-400/20 rounded-lg relative overflow-hidden group text-left md:text-center">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-400 to-transparent opacity-50"></div>
-                      <div className="flex flex-col items-center gap-3">
-                         <div className="p-2 rounded-full bg-ocean-800/50 border border-ocean-400/30">
-                           <ScrollText size={20} className="text-purple-300" />
-                         </div>
-                         <h3 className="font-serif text-xl text-purple-200">灵魂映像</h3>
-                         <p className="text-ocean-100/90 leading-relaxed font-story max-w-xl">
-                           {storyNode.characterAnalysis}
-                         </p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-4">
-                    <Button onClick={handleRestart} variant="secondary">
-                      进入新的世界 (重新开始)
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-        
-        {loading && (
-          <div className="flex justify-center items-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-ocean-400"></div>
-            <span className="ml-3 text-ocean-400 animate-pulse font-serif">
-               {setupStep === 'SELECT_IP' && !storyNode && "正在检索多元宇宙档案..."}
-               {setupStep === 'SELECT_START_NODE' && !storyNode && "正在推演命运节点..."}
-               {status === GameStatus.PLAYING && "世界正在重构中..."}
-            </span>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-    );
-  };
+    return null;
+  }, [
+    status, storyNode, showChoices, loading, sceneImage, customInput, setupStep, 
+    ipName, ipSummary, ipAuthor, ipCategory, ipOriginLang, canonCharacterName, 
+    ocCharacterName, canonValidationMsg, ocQuestions, ocAnswers, ocStep, ocImage, 
+    isRegeneratingOc, selectedArtStyle, showArtStyles, user, router,
+    plotNodes, customStartNode, selectedNodeId
+  ]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-ocean-900 via-ocean-800 to-ocean-900 text-white overflow-x-hidden relative">
-      {/* Background Particles/Effects */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-[10%] left-[20%] w-64 h-64 bg-ocean-400/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '0s' }}></div>
-        <div className="absolute bottom-[20%] right-[10%] w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-[40%] left-[60%] w-48 h-48 bg-teal-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '4s' }}></div>
-        
-        {/* Bubbles - kept for atmosphere, but less "underwater" specific contextually */}
-        {[...Array(10)].map((_, i) => (
-           <div 
-             key={i}
-             className="absolute rounded-full border border-white/10 bg-white/5"
-             style={{
-               width: Math.random() * 20 + 10 + 'px',
-               height: Math.random() * 20 + 10 + 'px',
-               left: Math.random() * 100 + '%',
-               top: Math.random() * 100 + '%',
-               animation: `float ${Math.random() * 10 + 10}s linear infinite`,
-               opacity: Math.random() * 0.5
-             }}
-           />
-        ))}
-      </div>
-
-      <header className="relative z-10 w-full p-6 flex justify-between items-center backdrop-blur-sm bg-ocean-900/50 border-b border-ocean-800/50 sticky top-0">
-        <div className="flex items-center gap-2 text-ocean-100 cursor-pointer" onClick={() => status === GameStatus.IDLE ? null : window.location.reload()}>
-          <Anchor size={24} />
-          <span className="font-serif font-bold tracking-wider hidden sm:inline">万界传说</span>
-        </div>
-        <div className="flex items-center gap-4">
-          {user && (
-            <Button 
-              onClick={() => router.push('/archive')} 
-              variant="secondary" 
-              className="px-3 py-1 text-xs flex items-center gap-2"
-            >
-              <BookOpen size={14} />
-              时空档案
-            </Button>
-          )}
-           <Sparkles size={20} className="text-yellow-300 animate-pulse" />
-           <span className="text-xs uppercase tracking-widest text-ocean-400">Gemini Infinite RPG</span>
-        </div>
-      </header>
-
-      <main className="relative z-10 container mx-auto px-4 py-8 min-h-[calc(100vh-80px)] flex flex-col">
+    <div className="relative w-full min-h-screen bg-[#F2EFE5] overflow-hidden">
+      <TribalBackground />
+      <div className="relative z-10 w-full min-h-screen">
         {renderContent()}
-      </main>
+      </div>
     </div>
   );
 }

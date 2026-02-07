@@ -7,10 +7,26 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        hand: ['var(--font-hand)', 'cursive'],
         serif: ['var(--font-serif)', 'serif'],
         sans: ['var(--font-sans)', 'sans-serif'],
       },
       colors: {
+        ink: {
+          DEFAULT: '#5D4037',
+          light: '#8D6E63',
+        },
+        paper: '#F2EFE5',
+        tribal: {
+          dark: '#B09882',
+          light: '#D7C9B6',
+        },
+        bg: {
+          paper: '#FDFBF7',
+          card: '#EFEBE9',
+        },
+        purple: '#9fa0d7',
+        orange: '#FF7043',
         ocean: {
           900: '#0f172a',
           800: '#1e3a8a',
@@ -23,6 +39,7 @@ export default {
       animation: {
         'float': 'float 6s ease-in-out infinite',
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'spin-slow': 'spin 60s linear infinite',
       },
       keyframes: {
         float: {

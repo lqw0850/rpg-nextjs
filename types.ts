@@ -14,6 +14,7 @@ export interface StoryNode {
   narrative: string;
   choices: Choice[];
   status: 'CONTINUE' | 'GAME_OVER' | 'VICTORY';
+  characterLabel?: string | null;
   characterAnalysis?: string | null;
 }
 

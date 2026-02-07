@@ -12,9 +12,13 @@ export const responseSchema: any = {
       enum: ["CONTINUE", "GAME_OVER", "VICTORY"],
       description: "The current state of the game.",
     },
+    characterLabel: {
+      type: Type.STRING,
+      description: "Character Label. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
+    },
     characterAnalysis: {
       type: Type.STRING,
-      description: "Soul Reflection. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
+      description: "Character Analysis. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
     },
     options: {
       type: Type.OBJECT,
@@ -26,12 +30,16 @@ export const responseSchema: any = {
       required: ["A", "B", "C"],
     },
   },
-  required: ["narration", "status", "options", "characterAnalysis"],
+  required: ["narration", "status", "options", "characterLabel", "characterAnalysis"],
 };
 
 export const ipValidationSchema: any = {
   type: Type.OBJECT,
   properties: {
+    abstract: {
+      type: Type.STRING,
+      description: "Factual English summary under 200 words from canonical description.",
+    },
     isExist: {
       type: Type.BOOLEAN,
       description: "Whether the work exists.",
@@ -43,10 +51,6 @@ export const ipValidationSchema: any = {
     originalLanguage: {
       type: Type.STRING,
       description: "Standard language name (e.g., English, Chinese).",
-    },
-    abstract: {
-      type: Type.STRING,
-      description: "Factual English summary under 200 words from canonical description.",
     },
     category: {
       type: Type.STRING,
@@ -61,21 +65,6 @@ export const characterValidationSchema: any = {
   type: Type.OBJECT,
   properties: {
     isExist: { type: Type.BOOLEAN },
-    basicInfo: {
-      type: Type.OBJECT,
-      properties: {
-        canonicalName: { type: Type.STRING },
-        aliases: { type: Type.ARRAY, items: { type: Type.STRING } }
-      }
-    },
-    features: {
-      type: Type.OBJECT,
-      properties: {
-        occupations: { type: Type.ARRAY, items: { type: Type.STRING } },
-        affiliations: { type: Type.ARRAY, items: { type: Type.STRING } },
-        coreRelationships: { type: Type.ARRAY, items: { type: Type.STRING } }
-      }
-    },
     appearance: { type: Type.STRING }
   },
   required: ["isExist"]
