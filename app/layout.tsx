@@ -6,8 +6,8 @@ import { SupabaseProvider } from '../lib/supabase/supabaseProvider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: '万界传说 - RPG',
-  description: '无限流互动文字冒险游戏',
+  title: 'ReBelief',
+  description: 'A text-based interactive adventure game',
 };
 
 export default function RootLayout({

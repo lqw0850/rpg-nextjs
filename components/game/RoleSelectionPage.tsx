@@ -1,9 +1,11 @@
 import React from 'react';
+import { LoadingComponent } from '../ui/LoadingComponent';
 
 type RoleSelectionPageProps = {
   canonCharacterName: string;
   ocCharacterName: string;
   canonValidationMsg: string;
+  loading: boolean;
   onCanonCharacterNameChange: (value: string) => void;
   onOcCharacterNameChange: (value: string) => void;
   onCanonSubmit: () => void;
@@ -15,16 +17,21 @@ export const RoleSelectionPage: React.FC<RoleSelectionPageProps> = ({
   canonCharacterName,
   ocCharacterName,
   canonValidationMsg,
+  loading,
   onCanonCharacterNameChange,
   onOcCharacterNameChange,
   onCanonSubmit,
   onOcSubmit,
   onBack,
 }) => {
+  if (loading) {
+    return <LoadingComponent />;
+  }
+
   return (
     <div className="relative w-full h-screen flex overflow-hidden font-sans">
       <div className="absolute top-[5%] w-full text-center z-30 pointer-events-none">
-        <h2 className="font-hand text-5xl md:text-6xl text-[#5D4037] drop-shadow-sm select-none">Choose the role</h2>
+        <h2 className="font-hand text-5xl md:text-6xl text-[#5D4037] drop-shadow-sm select-none">Choose your role</h2>
       </div>
 
       <div 

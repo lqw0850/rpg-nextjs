@@ -61,6 +61,9 @@ export default function Home() {
   const [selectedArtStyle, setSelectedArtStyle] = useState<ArtStyle>(DEFAULT_ART_STYLE);
   const [showArtStyles, setShowArtStyles] = useState(false);
   const [showEndingSummary, setShowEndingSummary] = useState(false);
+  const [isGeneratingPlotNodes, setIsGeneratingPlotNodes] = useState(false);
+  const [isEnteringWorld, setIsEnteringWorld] = useState(false);
+  const [isGeneratingNextChapter, setIsGeneratingNextChapter] = useState(false);
 
   const [plotNodes, setPlotNodes] = useState<string[]>([]);
   const [customStartNode, setCustomStartNode] = useState('');
@@ -289,6 +292,7 @@ export default function Home() {
       } finally {
         setLoadingImage(false);
       }
+      setLoading(false);
     } catch (error) {
       console.error("Error starting game", error);
       alert("Unable to connect to the world hub (API error), please check your network connection.");
@@ -302,7 +306,10 @@ export default function Home() {
       return;
     }
     
+    setIsGeneratingPlotNodes(true);
     await handleGeneratePlotNodes();
+    setIsGeneratingPlotNodes(false);
+    setOcStep('CONCEPT')
     setSetupStep('SELECT_START_NODE');
   };
 
@@ -321,7 +328,9 @@ export default function Home() {
       return;
     }
     
+    setIsEnteringWorld(true);
     await handleStartGame(startNode);
+    setIsEnteringWorld(false);
   };
 
   const handleVerifyAndStartCanon = async () => {
@@ -374,8 +383,7 @@ export default function Home() {
           }
         }
         
-        await handleGeneratePlotNodes();
-        setSetupStep('SELECT_START_NODE');
+        setOcStep('IMAGE_GEN');
       } else {
         setCanonValidationMsg("This character does not seem to belong to this world. Please check the spelling or try creating an original character.");
       }
@@ -393,6 +401,7 @@ export default function Home() {
       alert("Please enter a character name");
       return;
     }
+    setLoading(true);
     try {
       const response = await fetch('/api/generate-oc-questions', {
         method: 'POST',
@@ -417,11 +426,34 @@ export default function Home() {
     } catch (error) {
       console.error(error);
       alert("Failed to generate questions, please try again");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGenerateCharacterImage = async () => {
     setLoading(true);
+
+    if (charMode === 'OC') {
+      const requiredFields = ocQuestions.slice(0, 4).filter((q, idx) => 
+        q.toLowerCase().includes('name') || 
+        q.toLowerCase().includes('age') || 
+        q.toLowerCase().includes('gender') || 
+        q.toLowerCase().includes('appearance')
+      );
+      
+      const missingFields = requiredFields.filter((q, idx) => {
+        const originalIndex = ocQuestions.indexOf(q);
+        return !ocAnswers[originalIndex] || ocAnswers[originalIndex].trim() === '';
+      });
+      
+      if (missingFields.length > 0) {
+        setLoading(false);
+        alert('Please fill in all required fields (marked with *).');
+        return;
+      }
+    }
+
     try {
       let visualPrompt = ocVisualDesc;
       
@@ -471,9 +503,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         setOcImage(null);
       }
       
-      await handleGeneratePlotNodes();
       setOcStep('IMAGE_GEN');
-      setSetupStep('SELECT_START_NODE');
     } catch (error) {
       console.error(error);
       alert("Character image generation failed, please try again");
@@ -556,6 +586,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
 
   const handleSelectChoice = async (choice: Choice) => {
     setShowChoices(false);
+    setIsGeneratingNextChapter(true);
     try {
       const response = await fetch('/api/make-choice', {
         method: 'POST',
@@ -597,12 +628,15 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       console.error("Error making choice", error);
       alert("Failed to process your choice, please try again.");
       setShowChoices(true);
+    } finally {
+      setIsGeneratingNextChapter(false);
     }
   };
 
   const handleSubmitCustomInput = async () => {
     if (!customInput.trim()) return;
     setShowChoices(false);
+    setIsGeneratingNextChapter(true);
     try {
       const response = await fetch('/api/make-choice', {
         method: 'POST',
@@ -645,11 +679,12 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       console.error("Error submitting custom input", error);
       alert("Failed to process your input, please try again.");
       setShowChoices(true);
+    } finally {
+      setIsGeneratingNextChapter(false);
     }
   };
 
   const handleGeneratePlotNodes = async () => {
-    setLoading(true);
     try {
       const response = await fetch('/api/generate-plot-nodes', {
         method: 'POST',
@@ -670,8 +705,6 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     } catch (error) {
       console.error("Error generating plot nodes", error);
       alert("Failed to generate plot nodes, please try again.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -742,6 +775,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
               canonCharacterName={canonCharacterName}
               ocCharacterName={ocCharacterName}
               canonValidationMsg={canonValidationMsg}
+              loading={loading}
               onCanonCharacterNameChange={(value) => {
                 setCanonCharacterName(value);
                 setCharacterName(value);
@@ -763,7 +797,9 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
             />
           )}
 
-          {ocStep === 'IMAGE_GEN' ? (
+          {isGeneratingPlotNodes || isEnteringWorld ? (
+            <LoadingComponent />
+          ) : ocStep === 'IMAGE_GEN' ? (
             <CharacterImagePage
               characterName={characterName}
               ocImage={ocImage}
@@ -817,6 +853,11 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
           />
         );
       }
+      
+      if (isGeneratingNextChapter) {
+        return <LoadingComponent />;
+      }
+      
       return (
         <GameMainPage
           storyNode={storyNode}
@@ -839,7 +880,8 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     ipName, ipSummary, ipAuthor, ipCategory, ipOriginLang, canonCharacterName, 
     ocCharacterName, canonValidationMsg, ocQuestions, ocAnswers, ocStep, ocImage, 
     isRegeneratingOc, selectedArtStyle, showArtStyles, user, router,
-    plotNodes, customStartNode, selectedNodeId
+    plotNodes, customStartNode, selectedNodeId, isGeneratingPlotNodes, isEnteringWorld, 
+    isGeneratingNextChapter
   ]);
 
   return (

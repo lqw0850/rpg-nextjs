@@ -79,6 +79,7 @@ Input: "${ipName}"
   }
 
   public async generateOcVisualPrompt(profile: string): Promise<string> {
+    console.log('Received profile:', profile);
     const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Based on the following character profile for an RPG, generate a concise but detailed visual description for an image generator (like Midjourney or Stable Diffusion). 
