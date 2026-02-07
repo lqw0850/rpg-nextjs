@@ -16,6 +16,7 @@ import { CharacterImagePage } from '../components/game/CharacterImagePage';
 import { PlotNodeSelectionPage } from '../components/game/PlotNodeSelectionPage';
 import { GameMainPage } from '../components/game/GameMainPage';
 import { EndingSummaryPage } from '../components/game/EndingSummaryPage';
+import { LoadingComponent } from '../components/ui/LoadingComponent';
 
 type SetupStep = 'SELECT_IP' | 'STORY_DETAILS' | 'ROLE_SELECTION' | 'SELECT_START_NODE' | 'OC_QUESTIONS';
 type CharacterMode = 'CANON' | 'OC';
@@ -712,12 +713,16 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
           )}
 
           {setupStep === 'SELECT_IP' && (
-            <IpSelectionPage
-              ipName={ipName}
-              onIpNameChange={setIpName}
-              onVerifyIp={handleVerifyIp}
-              loading={loading}
-            />
+            loading ? (
+              <LoadingComponent />
+            ) : (
+              <IpSelectionPage
+                ipName={ipName}
+                onIpNameChange={setIpName}
+                onVerifyIp={handleVerifyIp}
+                loading={loading}
+              />
+            )
           )}
 
           {setupStep === 'STORY_DETAILS' && (
@@ -838,7 +843,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
   ]);
 
   return (
-    <div className="relative w-full min-h-screen bg-[#F2EFE5] overflow-hidden">
+    <div className="relative w-full min-h-screen bg-[#EFEAD8] overflow-hidden">
       <TribalBackground />
       <div className="relative z-10 w-full min-h-screen">
         {renderContent()}

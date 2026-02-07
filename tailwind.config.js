@@ -10,6 +10,7 @@ export default {
         hand: ['var(--font-hand)', 'cursive'],
         serif: ['var(--font-serif)', 'serif'],
         sans: ['var(--font-sans)', 'sans-serif'],
+        theme: ['"Theme"', 'cursive'],
       },
       colors: {
         ink: {
