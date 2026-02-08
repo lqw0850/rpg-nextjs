@@ -66,21 +66,26 @@ const categoryToStyleMap: Record<string, string> = {
   "Eastern Fantasy": "ink_wash",
   "Modern Urban": "modern",
   "Mystery & Horror": "mystery",
-  "War": "Oil Painting",
+  "War": "oil_painting",
   "Western": "minimalist_pixel",
   "Science Fiction": "anime"
 };
 
 // 根据作品获取画风
-export function getArtStyleByCategory(category: string): ArtStyle | undefined {
+export function getArtStyleByCategory(category: string): ArtStyle {
+  if (!category) {
+    console.warn(`category is empty, return default art style.`);
+    return DEFAULT_ART_STYLE;
+  }
+  
   const normalizedCategory = category.trim();
 
   // 获取映射结果
-  // 如果匹配不到（例如输入了不在列表中的分类），默认返回 'Modern'
+  // 如果匹配不到（例如输入了不在列表中的分类），默认返回 'Minimalist Pixel'
   const style = categoryToStyleMap[normalizedCategory];
 
   if (!style) {
-    console.warn(`未找到分类 [${normalizedCategory}] 对应的映射，已返回默认画风。`);
+    console.warn(`can't find art style for category [${normalizedCategory}], return default art style.`);
     return DEFAULT_ART_STYLE;
   }
 
@@ -88,8 +93,13 @@ export function getArtStyleByCategory(category: string): ArtStyle | undefined {
 }
 
 // 根据ID获取画风
-export function getArtStyleById(id: string): ArtStyle | undefined {
-  return ART_STYLES.find(style => style.id === id);
+export function getArtStyleById(id: string): ArtStyle {
+  const artStyle = ART_STYLES.find(style => style.id === id);
+  if (!artStyle) {
+    console.warn(`can't find art style for id [${id}], return default art style.`);
+    return DEFAULT_ART_STYLE;
+  }
+  return artStyle;
 }
 
 // 获取画风名称列表

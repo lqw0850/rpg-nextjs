@@ -31,6 +31,7 @@ export interface GameSession {
   chat: Chat;
   ipName: string;
   ocVisualDescription: string;
+  artStyleId: string;
   lastActivity?: number;
 }
 

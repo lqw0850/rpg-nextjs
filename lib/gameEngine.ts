@@ -118,8 +118,8 @@ ABSOLUTE CONSTRAINTS
       }
     });
 
-    console.log(response)
-    console.log(response.candidates?.[0]?.content?.parts?.[0]?.text)
+    // console.log(response)
+    // console.log(response.candidates?.[0]?.content?.parts?.[0]?.text)
     // 兼容性获取文本内容
     const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
 
@@ -215,7 +215,7 @@ ABSOLUTE CONSTRAINTS
     return storyNode;
   }
 
-  public async continueGame(ipName: string, charName: string, latestRound: any, historyRounds: any[], isOc?: boolean, ocProfile?: any): Promise<{ sessionId: string; storyNode: StoryNode }> {
+  public async continueGame(ipName: string, charName: string, latestRound: any, historyRounds: any[], isOc?: boolean, ocProfile?: any, artStyleId?: string): Promise<{ sessionId: string; storyNode: StoryNode }> {
     // 1. Generate session ID
     const sessionId = crypto.randomUUID();
 
@@ -283,7 +283,7 @@ ABSOLUTE CONSTRAINTS
     };
 
     // 6. Create session
-    createSession(sessionId, chat, ipName);
+    createSession(sessionId, chat, ipName, ocProfile, artStyleId);
 
     return { sessionId, storyNode: initialStoryNode };
   }

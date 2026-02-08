@@ -20,7 +20,7 @@ export class DatabaseService {
       return null;
     }
     
-    console.log('查找结果:', data);
+    // console.log('查找结果:', data);
     return data && data.length > 0 ? data[0] : null;
   }
 
@@ -88,7 +88,7 @@ export class DatabaseService {
    * @param isAnonymous 是否为匿名用户
    * @returns 游戏记录
    */
-  public async createGameRecord(userId: string, ipName: string, characterName: string, isOc: boolean, ocProfile?: any, isAnonymous?: boolean) {
+  public async createGameRecord(userId: string, ipName: string, characterName: string, isOc: boolean, ocProfile?: any, isAnonymous?: boolean, artStyleId?: string) {
     // 如果是匿名用户，不存储游戏记录
     if (isAnonymous) {
       console.log('匿名用户游戏，不存储记录');
@@ -113,7 +113,8 @@ export class DatabaseService {
         character_name: characterName,
         is_oc: isOc,
         oc_profile: ocProfile,
-        status: 0 // 0: 任务进行中
+        status: 0, // 0: 任务进行中
+        art_style: artStyleId
       })
       .select()
       .single();

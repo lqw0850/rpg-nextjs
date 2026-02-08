@@ -20,13 +20,15 @@ export const createSession = (
   id: string,
   chat: Chat,
   ipName: string,
-  ocVisualDescription: string = ''
+  ocVisualDescription: string = '',
+  artStyleId: string = ''
 ): GameSession => {
   const session: GameSession = {
     id,
     chat,
     ipName,
     ocVisualDescription,
+    artStyleId,
     lastActivity: Date.now()
   };
   
@@ -49,7 +51,7 @@ export const deleteSession = (id: string): void => {
   global.__gameSessions.delete(id);
 };
 
-export const cleanupExpiredSessions = (timeoutMs: number = 30 * 60 * 1000): void => {
+export const cleanupExpiredSessions = (timeoutMs: number = 120 * 60 * 1000): void => {
   const now = Date.now();
   
   for (const [sessionId, session] of global.__gameSessions.entries()) {

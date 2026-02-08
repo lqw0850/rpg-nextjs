@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     // 提取OC信息
     const isOc = gameRecord.is_oc;
     const ocProfile = gameRecord.oc_profile;
+    const artStyleId = gameRecord.art_style;
     
     // 获取轮次记录
     const gameRounds = await gameService.getGameRounds(gameRecordId);
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 继续游戏逻辑
-    const result = await gameService.continueGame(gameRecordId, ipName, characterName, gameRounds, isOc, ocProfile);
+    const result = await gameService.continueGame(gameRecordId, ipName, characterName, gameRounds, isOc, ocProfile, artStyleId);
     
     return NextResponse.json(result);
   } catch (error) {

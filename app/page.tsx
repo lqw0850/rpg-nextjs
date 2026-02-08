@@ -3,11 +3,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { GameStatus, type StoryNode, type Choice } from '../types';
-import { TribalBackground } from '../components/TribalBackground';
 import { useSupabase } from '../lib/supabase/supabaseProvider';
 import { supabase } from '../lib/supabase/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { ART_STYLES, DEFAULT_ART_STYLE, type ArtStyle } from '../lib/artStyles';
+import { ART_STYLES, DEFAULT_ART_STYLE, getArtStyleByCategory, type ArtStyle } from '../lib/artStyles';
 import { IpSelectionPage } from '../components/game/IpSelectionPage';
 import { StoryDetailsPage } from '../components/game/StoryDetailsPage';
 import { RoleSelectionPage } from '../components/game/RoleSelectionPage';
@@ -202,6 +201,7 @@ export default function Home() {
         setFinalOcProfile('');
         setPlotNodes([]);
         setCustomStartNode('');
+        setSelectedArtStyle(getArtStyleByCategory(result.category));
       } else {
         alert(`Cannot find the work "${ipName}" or it does not meet the inclusion criteria. Please try a more precise name.`);
       }
@@ -254,7 +254,8 @@ export default function Home() {
           characterName, 
           startNode, 
           isOc: charMode === 'OC',
-          finalOcProfile
+          finalOcProfile,
+          artStyleId: selectedArtStyle.id,
         }),
       });
       const data = await response.json();
@@ -359,7 +360,7 @@ export default function Home() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ ipName, characterName }),
+          body: JSON.stringify({ ipName, characterName, appearance: result.appearance }),
         });
         const profile = await profileResponse.json();
         setFinalOcProfile(profile);
@@ -370,10 +371,11 @@ export default function Home() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            sessionId: 'canon-character-preview',
+            ipName,
             narrative: "Character portrait, facing camera, official artwork style.", 
-            isOcPortrait: false,
-            ocVisualDescription: result.appearance || ""
+            isOcPortrait: true,
+            ocVisualDescription: profile || "",
+            artStyle: selectedArtStyle.id,
           }),
         });
         
@@ -457,15 +459,18 @@ export default function Home() {
 
     try {
       let visualPrompt = ocVisualDesc;
+      let profile;
       
       if (charMode === 'OC') {
-        const profile = `
+        profile = `
 Name: ${characterName}
 Details:
-${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
+${ocQuestions
+  .map((q, i) => ({ question: q, answer: ocAnswers[i] }))
+  .filter(({ answer }) => answer && answer.trim())
+  .map(({ question, answer }) => `${question}: ${answer}`)
+  .join('\n')}
         `.trim();
-        setFinalOcProfile(profile);
-        console.log(profile)
         const visualPromptResponse = await fetch('/api/generate-oc-visual-prompt', {
           method: 'POST',
           headers: {
@@ -475,6 +480,11 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         });
         visualPrompt = await visualPromptResponse.json();
         setOcVisualDesc(visualPrompt);
+        if(visualPrompt) {
+          profile += `\n\nAppearance: ${visualPrompt}`;
+        }
+        setFinalOcProfile(profile);
+        // console.log(profile)
       }
 
       const imageResponse = await fetch('/api/generate-image', {
@@ -483,9 +493,10 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
+          ipName,
           narrative: "Portrait shot, facing camera, character sheet style.", 
           isOcPortrait: true,
-          ocVisualDescription: visualPrompt,
+          ocVisualDescription: profile,
           artStyle: selectedArtStyle.id
         }),
       });
@@ -513,7 +524,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     }
   };
 
-  const handleRegenerateOcImage = async () => {
+  const handleRegenerateOcImage = async (newArtStyle?: string) => {
     if (redrawAttempts >= 2) {
       alert("You have reached the maximum number of redraw attempts (2).");
       return;
@@ -529,7 +540,48 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         body: JSON.stringify({ 
           narrative: "Portrait shot, facing camera, character sheet style.", 
           isOcPortrait: true,
-          ocVisualDescription: ocVisualDesc,
+          ocVisualDescription: finalOcProfile,
+          artStyle: newArtStyle || selectedArtStyle.id
+        }),
+      });
+      
+      if (!imageResponse.ok) {
+        throw new Error(`Image generation failed: ${imageResponse.status}`);
+      }
+      
+      const image = await imageResponse.json();
+      if (image && typeof image === 'string' && image.startsWith('data:')) {
+        setOcImage(image);
+        setRedrawAttempts(prev => prev + 1);
+      } else {
+        console.warn('Invalid image response format:', image);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to regenerate image, please try again");
+    } finally {
+      setIsRegeneratingOc(false);
+    }
+  };
+
+  const handleRegenerateWithAdjustments = async (adjustments: string) => {
+    if (redrawAttempts >= 2) {
+      alert("You have reached the maximum number of redraw attempts (2).");
+      return;
+    }
+    
+    setIsRegeneratingOc(true);
+    try {
+      const newFinalOcProfile = `${finalOcProfile} ${adjustments}`;
+      const imageResponse = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          narrative: `Portrait shot, facing camera, character sheet style.`, 
+          isOcPortrait: true,
+          ocVisualDescription: newFinalOcProfile,
           artStyle: selectedArtStyle.id
         }),
       });
@@ -541,6 +593,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       const image = await imageResponse.json();
       if (image && typeof image === 'string' && image.startsWith('data:')) {
         setOcImage(image);
+        setFinalOcProfile(newFinalOcProfile);
         setRedrawAttempts(prev => prev + 1);
       } else {
         console.warn('Invalid image response format:', image);
@@ -608,6 +661,13 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       setStoryNode(data);
       setCustomInput('');
       setShowChoices(false);
+      
+      // 根据故事节点状态更新游戏状态
+      if (data.status === 'GAME_OVER') {
+        setStatus(GameStatus.GAME_OVER);
+      } else if (data.status === 'VICTORY') {
+        setStatus(GameStatus.VICTORY);
+      }
       
       setLoadingImage(true);
       try {
@@ -768,6 +828,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
               showArtStyles={showArtStyles}
               redrawAttempts={redrawAttempts}
               onRegenerateImage={handleRegenerateOcImage}
+              onRegenerateWithAdjustments={handleRegenerateWithAdjustments}
               onSelectArtStyle={setSelectedArtStyle}
               onToggleArtStyles={() => setShowArtStyles(!showArtStyles)}
               onBack={() => setOcStep(charMode === 'OC' ? 'QUESTIONS' : 'CONCEPT')}
@@ -841,7 +902,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     ocCharacterName, canonValidationMsg, ocQuestions, ocAnswers, ocStep, ocImage, 
     isRegeneratingOc, selectedArtStyle, showArtStyles, user, router,
     plotNodes, customStartNode, selectedNodeId, isGeneratingPlotNodes, isEnteringWorld, 
-    isGeneratingNextChapter
+    isGeneratingNextChapter, showEndingSummary
   ]);
 
   return (

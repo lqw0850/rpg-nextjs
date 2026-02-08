@@ -3,8 +3,8 @@ import { getGameService } from '../../../lib/gameService';
 
 export async function POST(request: NextRequest) {
   try {
-    const { sessionId, narrative, isOcPortrait, ocVisualDescription, artStyle } = await request.json();
-    console.log('Received request:', { sessionId, narrative, isOcPortrait, ocVisualDescription, artStyle });
+    const { sessionId, ipName, narrative, isOcPortrait, ocVisualDescription, artStyle } = await request.json();
+    console.log('Received request:', { sessionId, ipName, narrative, isOcPortrait, ocVisualDescription, artStyle });
     // 如果是OC角色图像生成（isOcPortrait为true），sessionId是可选的
     if (!narrative || typeof narrative !== 'string') {
       return NextResponse.json({ error: 'Invalid narrative' }, { status: 400 });
@@ -18,9 +18,10 @@ export async function POST(request: NextRequest) {
     const gameService = getGameService();
     
     // 对于OC角色图像生成，使用一个临时的sessionId
-    const effectiveSessionId = isOcPortrait ? 'oc-image-generation' : sessionId;
+    const effectiveSessionId = isOcPortrait ? 'character-image-generation' : sessionId;
     const image = await gameService.generateImage(
       effectiveSessionId, 
+      ipName,
       narrative, 
       isOcPortrait || false, 
       ocVisualDescription, 

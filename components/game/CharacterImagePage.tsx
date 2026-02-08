@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ART_STYLES, type ArtStyle } from '../../lib/artStyles';
 import { TribalBackground } from '../TribalBackground';
 
@@ -10,7 +10,8 @@ type CharacterImagePageProps = {
   selectedArtStyle: ArtStyle;
   showArtStyles: boolean;
   redrawAttempts: number;
-  onRegenerateImage: () => void;
+  onRegenerateImage: (newArtStyle?: string) => void;
+  onRegenerateWithAdjustments: (adjustments: string) => void;
   onSelectArtStyle: (style: ArtStyle) => void;
   onToggleArtStyles: () => void;
   onBack: () => void;
@@ -26,12 +27,20 @@ export const CharacterImagePage: React.FC<CharacterImagePageProps> = ({
   showArtStyles,
   redrawAttempts,
   onRegenerateImage,
+  onRegenerateWithAdjustments,
   onSelectArtStyle,
   onToggleArtStyles,
   onBack,
   onConfirm,
 }) => {
   const buttonStyle = "bg-[#D7C9B6] hover:bg-[#c9bba6] border border-[#a89580] text-ink font-serif py-2 px-4 rounded-full shadow-sm text-sm transition-colors w-40 text-center whitespace-nowrap";
+  const [adjustments, setAdjustments] = useState('');
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && adjustments.trim() && redrawAttempts < 2 && !isRegeneratingOc) {
+      onRegenerateWithAdjustments(adjustments.trim());
+    }
+  };
 
   return (
     <div className="fixed inset-0 flex flex-col items-center w-full h-full z-10 pt-6 overflow-hidden">
@@ -65,10 +74,15 @@ export const CharacterImagePage: React.FC<CharacterImagePageProps> = ({
               {ART_STYLES.slice(0, 4).map(style => (
                 <button 
                   key={style.id}
-                  onClick={() => onSelectArtStyle(style)}
-                  className={`${buttonStyle} ${redrawAttempts >= 2 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => {
+                    if (selectedArtStyle.id !== style.id) {
+                      onSelectArtStyle(style);
+                      onRegenerateImage(style.id);
+                    }
+                  }}
+                  className={`${buttonStyle} ${(redrawAttempts >= 2 || isRegeneratingOc) ? 'opacity-50 cursor-not-allowed' : ''} ${selectedArtStyle.id === style.id ? 'ring-2 ring-ink bg-[#c9bba6]' : ''}`}
                   title={style.name}
-                  disabled={redrawAttempts >= 2}
+                  disabled={redrawAttempts >= 2 || isRegeneratingOc}
                 >
                   {style.name}
                 </button>
@@ -79,10 +93,15 @@ export const CharacterImagePage: React.FC<CharacterImagePageProps> = ({
               {ART_STYLES.slice(4).map(style => (
                 <button 
                   key={style.id}
-                  onClick={() => onSelectArtStyle(style)}
-                  className={`${buttonStyle} ${redrawAttempts >= 2 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => {
+                    if (selectedArtStyle.id !== style.id) {
+                      onSelectArtStyle(style);
+                      onRegenerateImage(style.id);
+                    }
+                  }}
+                  className={`${buttonStyle} ${(redrawAttempts >= 2 || isRegeneratingOc) ? 'opacity-50 cursor-not-allowed' : ''} ${selectedArtStyle.id === style.id ? 'ring-2 ring-ink bg-[#c9bba6]' : ''}`}
                   title={style.name}
-                  disabled={redrawAttempts >= 2}
+                  disabled={redrawAttempts >= 2 || isRegeneratingOc}
                 >
                   {style.name}
                 </button>
@@ -99,11 +118,15 @@ export const CharacterImagePage: React.FC<CharacterImagePageProps> = ({
           </p>
 
           <div className="w-full max-w-2xl px-8">
-            <label className="font-serif text-sm text-ink mb-1 block pl-2">Enter your specific adjustment details below.</label>
+            <label className="font-serif text-sm text-ink mb-1 block pl-2">Enter your additional modifications to appearance.</label>
             <input
               type="text"
-              placeholder="Enter all your adjustment details at once. Press 'Enter' when ready and wait a moment"
-              className="w-full bg-white rounded-lg py-3 px-4 text-sm font-serif text-gray-700 shadow-md border-none focus:outline-none focus:ring-1 focus:ring-ink/20"
+              placeholder="Enter your additional modifications to appearance. Press 'Enter' when ready and wait a moment"
+              className={`w-full bg-white rounded-lg py-3 px-4 text-sm font-serif text-gray-700 shadow-md border-none focus:outline-none focus:ring-1 focus:ring-ink/20 ${(redrawAttempts >= 2 || isRegeneratingOc) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              value={adjustments}
+              onChange={(e) => setAdjustments(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={redrawAttempts >= 2 || isRegeneratingOc}
             />
           </div>
         </>

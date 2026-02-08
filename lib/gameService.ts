@@ -98,20 +98,20 @@ export class GameService {
     });
   }
 
-  public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string, isAnonymous?: boolean): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number }> {
+  public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string, isAnonymous?: boolean, artStyleId?: string): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number }> {
     return this.retryOperation(async () => {
       // 如果是匿名用户，不更新未完成游戏记录
       if (!isAnonymous) {
         await databaseService.updateAllIncompleteGameRecords(userId, 2);
       }
 
-      const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile, isAnonymous);
+      const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile, isAnonymous, artStyleId);
       if (!gameRecord) {
         throw new Error("创建游戏记录失败");
       }
 
       const result = await this.gameEngine.startGame(ipName, charName, startNode, (sessionId, chat) => {
-        createSession(sessionId, chat, ipName);
+        createSession(sessionId, chat, ipName, ocProfile, artStyleId);
         const session = getSession(sessionId);
         if (session) {
           (session as any).gameRecordId = gameRecord.id;
@@ -158,7 +158,12 @@ export class GameService {
       }
       
       const storyNode = await this.gameEngine.makeChoice(session, choiceText);
-      // console.log(storyNode)
+
+      // 检查游戏是否结束，更新游戏记录状态
+      if (gameRecordId && (storyNode.status === 'GAME_OVER' || storyNode.status === 'VICTORY')) {
+        const gameStatus = storyNode.status === 'VICTORY' ? 1 : 2;
+        this.updateGameStatus(gameRecordId, gameStatus);
+      }
 
       // 创建新的轮次记录（为下一轮准备）
       if (gameRecordId) {
@@ -182,16 +187,16 @@ export class GameService {
     });
   }
 
-  public async generateImage(sessionId: string, narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string, artStyle?: string): Promise<string | null> {
+  public async generateImage(sessionId: string, ipName: string, narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string, artStyle?: string): Promise<string | null> {
     try {
       let session = getSession(sessionId);
       
       // 如果是OC角色图像生成或原著角色预览且session不存在，创建一个临时session
-      if ((isOcPortrait || sessionId === 'canon-character-preview') && !session) {
+      if (isOcPortrait && !session) {
         session = {
           id: sessionId,
           chat: { history: [] } as unknown as Chat, // 使用双重类型断言
-          ipName: sessionId === 'canon-character-preview' ? 'Canon Character Preview' : 'OC Generation',
+          ipName,
           ocVisualDescription: ocVisualDescription || '',
           createdAt: new Date(),
           lastActivityAt: new Date()
@@ -202,7 +207,7 @@ export class GameService {
       
       
       // 只有真实的session才需要更新活动时间
-      if (sessionId !== 'oc-image-generation' && sessionId !== 'canon-character-preview') {
+      if (sessionId !== 'character-image-generation') {
         updateSessionActivity(sessionId);
       }
       
@@ -259,7 +264,7 @@ export class GameService {
    * @param ocProfile OC档案
    * @returns 继续游戏结果
    */
-  public async continueGame(gameRecordId: number, ipName: string, characterName: string, gameRounds: any[], isOc?: boolean, ocProfile?: any): Promise<{ sessionId: string; storyNode: any }> {
+  public async continueGame(gameRecordId: number, ipName: string, characterName: string, gameRounds: any[], isOc?: boolean, ocProfile?: any, artStyleId?: string): Promise<{ sessionId: string; storyNode: any }> {
     return this.retryOperation(async () => {
       // 获取最新轮次
       const latestRound = gameRounds[gameRounds.length - 1];
@@ -271,7 +276,8 @@ export class GameService {
         latestRound, 
         gameRounds.slice(0, -1), // 排除最新轮次，作为历史
         isOc,
-        ocProfile
+        ocProfile,
+        artStyleId
       );
 
       // 更新会话的游戏记录ID

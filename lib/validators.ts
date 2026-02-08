@@ -217,8 +217,8 @@ Name Variations: If the input name is a common alias, still try to find the cano
         ]
       }
     });
-    console.log(response);
-    console.log(response.text);
+    // console.log(response);
+    // console.log(response.text);
     return JSON.parse(response.text!) as CharacterValidationResult;
   }
 }

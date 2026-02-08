@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGameService } from '../../../lib/gameService';
 
 export async function POST(request: NextRequest) {
   try {
-    const { ipName, characterName } = await request.json();
+    const { ipName, characterName, appearance } = await request.json();
     
     if (!ipName || !characterName || typeof ipName !== 'string' || typeof characterName !== 'string') {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
     
-    // 为原著角色生成档案描述
+    if (appearance !== undefined && typeof appearance !== 'string') {
+      return NextResponse.json({ error: 'Invalid appearance parameter' }, { status: 400 });
+    }
+    
+    let description = `${characterName} is a canon character from 《${ipName}》, possessing unique personality and background story. This character holds significant importance and influence within the original work.`;
+    
+    if (appearance && appearance.trim()) {
+      description += `\n\nAppearance: ${appearance}`;
+    }
+    
     const profile = `Character Name: ${characterName}
 Source Work: 《${ipName}》
 Character Type: Canon Character
 
 Character Description:
-${characterName} is a canon character from 《${ipName}》, possessing unique personality and background story. This character holds significant importance and influence within the original work.`;
+${description}`;
     
     return NextResponse.json(profile);
   } catch (error) {

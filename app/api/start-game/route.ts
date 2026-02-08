@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const supabaseServer = await createClient();
     const { data: { user }, error: authError } = await supabaseServer.auth.getUser();
     
-    const { ipName, characterName, startNode, isOc, finalOcProfile } = await request.json();
+    const { ipName, characterName, startNode, isOc, finalOcProfile, artStyleId } = await request.json();
     
     // 检查用户认证状态
     if (authError || !user) {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const isAnonymous = user.app_metadata?.provider === 'anonymous' || user.app_metadata?.is_anonymous === true;
     
     const gameService = getGameService();
-    const { sessionId, storyNode, gameRecordId } = await gameService.startGame(user.id, ipName, characterName, startNode, isOc, finalOcProfile, isAnonymous);
+    const { sessionId, storyNode, gameRecordId } = await gameService.startGame(user.id, ipName, characterName, startNode, isOc, finalOcProfile, isAnonymous, artStyleId);
     
     return NextResponse.json({ sessionId, gameRecordId, ...storyNode });
   } catch (error) {
