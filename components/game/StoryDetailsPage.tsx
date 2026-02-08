@@ -20,29 +20,44 @@ export const StoryDetailsPage: React.FC<StoryDetailsPageProps> = ({
   onBack,
   onNext,
 }) => {
+  // Function to calculate font size based on text length
+  const getFontSize = (text: string) => {
+    const baseSize = 90;
+    const minSize = 40;
+    
+    // Reduce font size as text length increases
+    const calculatedSize = Math.max(minSize, baseSize - Math.max(text.length - 15, 0) * 4);
+    return `${calculatedSize}px`;
+  };
+
   return (
     <div className="flex flex-col items-center justify-center w-full h-screen fixed inset-0 z-10 px-10">
       <TribalBackground />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center max-w-6xl w-full">
         {/* Left Side: Description */}
         <div className="font-serif text-lg leading-relaxed text-[#5D4037] text-center">
-          <p className="mb-4">
+          <p className="mb-4 text-justify">
             {ipSummary}
           </p>
         </div>
 
         {/* Right Side: Title & Metadata */}
         <div className="flex flex-col items-center pl-8 border-l border-[#5D4037]/10">
-          <h1 className="font-theme text-[90px] italic text-[#5D4037] mb-12 text-center leading-tight">{ipName}</h1>
+          <h1 
+            className="font-theme italic text-[#5D4037] mb-12 text-center leading-tight"
+            style={{ fontSize: getFontSize(ipName) }}
+          >
+            {ipName}
+          </h1>
           
-          <div className="grid grid-cols-[100px_1fr] gap-y-6 text-xl mx-auto">
-            <span className="font-bold text-[#5D4037]/80 font-serif text-right pr-4">Author</span>
+          <div className="grid grid-cols-[120px_1fr] gap-y-6 text-xl mx-auto">
+            <span className="font-bold text-[#5D4037]/80 font-serif text-right pr-4 w-full">Author</span>
             <span className="font-serif text-[#5D4037] text-left">{ipAuthor}</span>
 
-            <span className="font-bold text-[#5D4037]/80 font-serif text-right pr-4">Language</span>
+            <span className="font-bold text-[#5D4037]/80 font-serif text-right pr-4 w-full">Language</span>
             <span className="font-serif text-[#5D4037] text-left">{ipOriginLang || 'Unknown'}</span>
 
-            <span className="font-bold text-[#5D4037]/80 font-serif text-right pr-4">Genre</span>
+            <span className="font-bold text-[#5D4037]/80 font-serif text-right pr-4 w-full">Genre</span>
             <span className="font-serif text-[#5D4037] text-left">{ipCategory}</span>
           </div>
         </div>

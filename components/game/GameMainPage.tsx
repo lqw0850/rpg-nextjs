@@ -9,7 +9,7 @@ type GameMainPageProps = {
   sceneImage: string | null;
   customInput: string;
   onCustomInputChange: (value: string) => void;
-  onChoiceSelect: (choice: Choice) => void;
+  onChoiceSelect: (choiceText: string) => void;
   onCustomInputSubmit: () => void;
   onRestart: () => void;
   onGoToSummary: () => void;
@@ -33,7 +33,7 @@ export const GameMainPage: React.FC<GameMainPageProps> = ({
     if (customInput.trim()) {
       onCustomInputSubmit();
     } else if (selectedChoice) {
-      onChoiceSelect(selectedChoice);
+      onChoiceSelect(selectedChoice.text);
     }
   };
 

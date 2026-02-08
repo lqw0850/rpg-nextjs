@@ -5,7 +5,7 @@ export const responseSchema: any = {
   properties: {
     narration: {
       type: Type.STRING,
-      description: "The narrative text for the current turn.",
+      description: "The narrative text for the current turn in English.",
     },
     status: {
       type: Type.STRING,
@@ -14,18 +14,18 @@ export const responseSchema: any = {
     },
     characterLabel: {
       type: Type.STRING,
-      description: "Character Label. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
+      description: "Character Label in English. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
     },
     characterAnalysis: {
       type: Type.STRING,
-      description: "Character Analysis. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
+      description: "Character Analysis in English. Required when status is GAME_OVER or VICTORY. Otherwise empty string.",
     },
     options: {
       type: Type.OBJECT,
       properties: {
-        A: { type: Type.STRING },
-        B: { type: Type.STRING },
-        C: { type: Type.STRING },
+        A: { type: Type.STRING, description: "Option A text in English." },
+        B: { type: Type.STRING, description: "Option B text in English." },
+        C: { type: Type.STRING, description: "Option C text in English." },
       },
       required: ["A", "B", "C"],
     },
@@ -58,7 +58,7 @@ export const ipValidationSchema: any = {
       description: "Category of the work.",
     }
   },
-  required: ["isExist"],
+  required: ["isExist", "abstract", "author", "originalLanguage", "category"],
 };
 
 export const characterValidationSchema: any = {
@@ -67,7 +67,7 @@ export const characterValidationSchema: any = {
     isExist: { type: Type.BOOLEAN },
     appearance: { type: Type.STRING }
   },
-  required: ["isExist"]
+  required: ["isExist", "appearance"]
 };
 
 export const questionsSchema: any = {

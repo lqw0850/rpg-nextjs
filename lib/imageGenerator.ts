@@ -47,11 +47,11 @@ export class ImageGenerator {
       let prompt = "";
       if (isOcPortrait) {
         // Specific prompt for OC generation
-        prompt = `Character Portrait, high quality, masterpiece. ${context} ${characterContext} ${narrative} ${stylePrompt}`;
+        prompt = `Character Portrait, high quality, masterpiece. Not contain any text. ${context} ${characterContext} ${narrative} ${stylePrompt}`;
       } else {
         // Scene generation
         const shortNarrative = narrative.length > 500 ? narrative.substring(0, 500) : narrative;
-        prompt = `Generate a wide landscape background image suitable for full-screen display. The image should be designed to cover the entire screen and work well with different aspect ratios (16:9, 4:3, 3:2, 21:9). Use a panoramic composition with the main action centered but with visual interest extending to the edges. The image should be safe for cropping on different screen sizes. ${stylePrompt || 'Realistic hand-drawn illustration style, detailed background, cinematic lighting, masterpiece, wide angle view.'} ${context} ${characterContext} Scene action: ${shortNarrative}`;
+        prompt = `Generate a wide landscape background image suitable for full-screen display. The image should be designed to cover the entire screen and work well with different aspect ratios (16:9, 4:3, 3:2, 21:9). Not contain any text. Use a panoramic composition with the main action centered but with visual interest extending to the edges. The image should be safe for cropping on different screen sizes. ${stylePrompt || 'Realistic hand-drawn illustration style, detailed background, cinematic lighting, masterpiece, wide angle view.'} ${context} ${characterContext} Scene action: ${shortNarrative}`;
       }
 
       console.log(prompt)

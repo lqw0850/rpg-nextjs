@@ -47,9 +47,9 @@ export const OcQuestionnairePage: React.FC<OcQuestionnairePageProps> = ({
           <button 
             onClick={onSubmit}
             disabled={loading}
-            className="font-hand text-4xl text-[#5D4037] hover:scale-105 transition-transform font-bold tracking-widest drop-shadow-sm disabled:opacity-50"
+            className="font-theme text-5xl text-[#5D4037] hover:scale-105 transition-transform font-bold tracking-widest drop-shadow-sm disabled:opacity-50"
           >
-            {loading ? 'Generating...' : 'SUBMIT'}
+            {loading ? 'Generating...' : 'Sumbit'}
           </button>
         </div>
       </div>
@@ -57,7 +57,7 @@ export const OcQuestionnairePage: React.FC<OcQuestionnairePageProps> = ({
       <div className="fixed bottom-10 left-10 z-30">
         <button 
           onClick={onBack}
-          className="font-theme text-3xl text-[#5D4037] hover:translate-x-[-5px] transition-transform flex items-center gap-2 font-bold select-none bg-[#F2EFE5]/80 rounded-lg pr-4"
+          className="font-theme text-3xl text-[#5D4037] hover:translate-x-[-5px] transition-transform flex items-center gap-2 font-bold select-none rounded-lg pr-4"
         >
           <span>←</span> BACK
         </button>

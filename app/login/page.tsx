@@ -87,7 +87,7 @@ export default function LoginPage() {
             <div className="relative">
               <input
                 type="text"
-                placeholder={isSignUp ? "Enter your email or account name" : "Enter your username"}
+                placeholder={"Enter your email"}
                 className="w-full bg-white rounded-xl py-3 px-4 text-xl font-serif text-gray-700 shadow-lg border-none focus:outline-none focus:ring-2 focus:ring-ink/20 placeholder-gray-400"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}

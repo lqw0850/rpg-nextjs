@@ -591,7 +591,9 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
     setShowEndingSummary(true);
   };
 
-  const handleSelectChoice = async (choice: Choice) => {
+  const handleSelectChoice = async (choiceText: string) => {
+    if (!choiceText.trim()) return;
+    
     setShowChoices(false);
     setIsGeneratingNextChapter(true);
     try {
@@ -600,57 +602,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sessionId, choiceText: choice.text }),
-      });
-      const data = await response.json();
-      setStoryNode(data);
-      setShowChoices(false);
-      
-      setLoadingImage(true);
-      try {
-        const imageResponse = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            sessionId,
-            narrative: data.narrative,
-            isOcPortrait: false,
-          }),
-        });
-        
-        if (imageResponse.ok) {
-          const image = await imageResponse.json();
-          if (image && typeof image === 'string' && image.startsWith('data:')) {
-            setSceneImage(image);
-          }
-        }
-      } catch (imageError) {
-        console.error("Error generating scene image:", imageError);
-      } finally {
-        setLoadingImage(false);
-      }
-    } catch (error) {
-      console.error("Error making choice", error);
-      alert("Failed to process your choice, please try again.");
-      setShowChoices(true);
-    } finally {
-      setIsGeneratingNextChapter(false);
-    }
-  };
-
-  const handleSubmitCustomInput = async () => {
-    if (!customInput.trim()) return;
-    setShowChoices(false);
-    setIsGeneratingNextChapter(true);
-    try {
-      const response = await fetch('/api/make-choice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sessionId, choiceText: customInput }),
+        body: JSON.stringify({ sessionId, choiceText }),
       });
       const data = await response.json();
       setStoryNode(data);
@@ -683,8 +635,8 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
         setLoadingImage(false);
       }
     } catch (error) {
-      console.error("Error submitting custom input", error);
-      alert("Failed to process your input, please try again.");
+      console.error("Error making choice", error);
+      alert("Failed to process your choice, please try again.");
       setShowChoices(true);
     } finally {
       setIsGeneratingNextChapter(false);
@@ -875,7 +827,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
           customInput={customInput}
           onCustomInputChange={setCustomInput}
           onChoiceSelect={handleSelectChoice}
-          onCustomInputSubmit={handleSubmitCustomInput}
+          onCustomInputSubmit={() => handleSelectChoice(customInput)}
           onRestart={handleRestart}
           onGoToSummary={handleGoToSummary}
         />
