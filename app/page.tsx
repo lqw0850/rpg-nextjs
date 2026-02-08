@@ -60,6 +60,7 @@ export default function Home() {
   const [finalOcProfile, setFinalOcProfile] = useState<string>('');
   const [selectedArtStyle, setSelectedArtStyle] = useState<ArtStyle>(DEFAULT_ART_STYLE);
   const [showArtStyles, setShowArtStyles] = useState(false);
+  const [redrawAttempts, setRedrawAttempts] = useState(0);
   const [showEndingSummary, setShowEndingSummary] = useState(false);
   const [isGeneratingPlotNodes, setIsGeneratingPlotNodes] = useState(false);
   const [isEnteringWorld, setIsEnteringWorld] = useState(false);
@@ -513,6 +514,11 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
   };
 
   const handleRegenerateOcImage = async () => {
+    if (redrawAttempts >= 2) {
+      alert("You have reached the maximum number of redraw attempts (2).");
+      return;
+    }
+    
     setIsRegeneratingOc(true);
     try {
       const imageResponse = await fetch('/api/generate-image', {
@@ -535,6 +541,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
       const image = await imageResponse.json();
       if (image && typeof image === 'string' && image.startsWith('data:')) {
         setOcImage(image);
+        setRedrawAttempts(prev => prev + 1);
       } else {
         console.warn('Invalid image response format:', image);
       }
@@ -725,13 +732,13 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
             <>
               <button 
                 onClick={() => router.push('/archive')}
-                className="absolute top-6 right-24 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
+                className="absolute top-5 right-32 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
               >
                 Records
               </button>
               <button 
                 onClick={handleLogout}
-                className="absolute top-6 right-8 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
+                className="absolute top-5 right-8 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
               >
                 Log Out
               </button>
@@ -739,7 +746,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
           ) : (
             <button 
               onClick={() => router.push('/login')}
-              className="absolute top-6 right-8 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
+              className="absolute top-5 right-8 font-serif font-bold text-ink text-sm z-50 hover:opacity-70"
             >
               Log In
             </button>
@@ -807,6 +814,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
               isRegeneratingOc={isRegeneratingOc}
               selectedArtStyle={selectedArtStyle}
               showArtStyles={showArtStyles}
+              redrawAttempts={redrawAttempts}
               onRegenerateImage={handleRegenerateOcImage}
               onSelectArtStyle={setSelectedArtStyle}
               onToggleArtStyles={() => setShowArtStyles(!showArtStyles)}
@@ -886,7 +894,7 @@ ${ocQuestions.map((q, i) => `${q}: ${ocAnswers[i] || 'Unknown'}`).join('\n')}
 
   return (
     <div className="relative w-full min-h-screen bg-[#EFEAD8] overflow-hidden">
-      <TribalBackground />
+      {/* <TribalBackground /> */}
       <div className="relative z-10 w-full min-h-screen">
         {renderContent()}
       </div>

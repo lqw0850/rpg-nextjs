@@ -68,12 +68,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-paper text-ink flex items-center justify-center font-sans">
+    <div className="relative w-full h-screen overflow-hidden bg-[#EFEAD8] text-ink flex items-center justify-center font-sans">
       <TribalBackground />
 
-      <div className="flex flex-col items-center w-full max-w-md mx-auto relative z-10 pt-[15vh] pb-10 transition-all duration-300">
-        <h1 className="font-hand text-7xl md:text-8xl text-ink mb-12 select-none tracking-widest drop-shadow-sm opacity-90 text-center">
-          REBELIEF
+      <div className="flex flex-col items-center w-full max-w-md mx-auto relative z-10 pt-[10vh] pb-10 transition-all duration-300">
+        <h1 className="font-theme text-7xl md:text-8xl text-ink mb-8 select-none drop-shadow-sm opacity-90 text-center"
+          style={{ 
+              color: '#B0947A',
+              fontSize: '200px',
+              textAlign: 'center'
+            }}>
+          ReBelief
         </h1>
 
         <div className="w-full space-y-6">

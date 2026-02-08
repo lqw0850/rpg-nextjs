@@ -1,5 +1,6 @@
 import React from 'react';
 import { type StoryNode } from '../../types';
+import { TribalBackground } from '../TribalBackground';
 
 interface EndingSummaryPageProps {
   storyNode: StoryNode | null;
@@ -15,20 +16,7 @@ export const EndingSummaryPage: React.FC<EndingSummaryPageProps> = ({
   return (
     <div className="flex flex-col items-center justify-center w-full min-h-screen relative z-10 overflow-hidden px-4 md:px-12">
        
-       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[140vh] h-[140vh] pointer-events-none z-0 opacity-60">
-          <svg viewBox="0 0 800 800" className="w-full h-full animate-spin-slow" style={{ animationDuration: '120s' }}>
-            <g stroke="white" fill="none" strokeWidth="2">
-               <circle cx="400" cy="400" r="380" strokeWidth="30" strokeOpacity="0.8" />
-               <circle cx="400" cy="400" r="340" strokeWidth="2" strokeDasharray="10 10" />
-               <path d="M 400 100 Q 550 100 650 250" strokeWidth="5" strokeOpacity="0.6"/>
-               <path d="M 400 700 Q 250 700 150 550" strokeWidth="5" strokeOpacity="0.6"/>
-               <path d="M 100 400 Q 100 250 250 150" strokeWidth="5" strokeOpacity="0.6"/>
-               <path d="M 700 400 Q 700 550 550 650" strokeWidth="5" strokeOpacity="0.6"/>
-               <circle cx="400" cy="400" r="200" strokeWidth="8" strokeOpacity="0.4" />
-               <circle cx="400" cy="400" r="150" strokeWidth="2" />
-            </g>
-          </svg>
-       </div>
+       <TribalBackground />
 
        <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-7xl gap-8 md:gap-16 z-10">
           
@@ -48,10 +36,11 @@ export const EndingSummaryPage: React.FC<EndingSummaryPageProps> = ({
           </div>
 
           <div className="w-full md:w-1/2 flex flex-col items-start text-left space-y-4">
-             <h1 className="font-hand text-7xl md:text-9xl text-[#5D4037] leading-none select-none tracking-wide ml-[-4px]"
+             <h1 className="font-theme font-bold text-7xl md:text-9xl text-[#5D4037] leading-none select-none tracking-widest ml-[-4px]"
                  style={{ 
                    textShadow: '3px 3px 0px rgba(255,255,255,0.4)',
-                   fontVariant: 'small-caps'
+                   fontVariant: 'small-caps',
+                   textTransform: 'uppercase'
                  }}>
                 {storyNode?.characterLabel || 'Ending'}
              </h1>
@@ -64,13 +53,13 @@ export const EndingSummaryPage: React.FC<EndingSummaryPageProps> = ({
           </div>
        </div>
 
-       <div className="mt-12 md:mt-20 z-10 pb-8">
+       <div className="fixed bottom-10 left-0 right-0 flex justify-center z-10">
           <button 
              onClick={onRestart}
-             className="font-hand text-4xl md:text-5xl text-[#5D4037] hover:scale-105 hover:-translate-y-1 transition-all duration-300 font-bold tracking-wider drop-shadow-sm flex items-center gap-2"
+             className="font-theme text-5xl md:text-5xl text-[#5D4037] hover:scale-105 hover:-translate-y-1 transition-all duration-300 font-bold tracking-wider drop-shadow-sm flex items-center gap-2"
              style={{ textShadow: '2px 2px 0px rgba(255,255,255,0.5)' }}
           >
-             Play Again
+             play again
           </button>
        </div>
 

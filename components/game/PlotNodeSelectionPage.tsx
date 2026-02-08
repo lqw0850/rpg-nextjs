@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TribalBackground } from '../TribalBackground';
 
 interface PlotNodeSelectionPageProps {
   plotNodes: string[];
@@ -19,7 +20,8 @@ export const PlotNodeSelectionPage: React.FC<PlotNodeSelectionPageProps> = ({
 }) => {
   return (
     <div className="flex flex-col items-center justify-center w-full min-h-screen relative z-10 px-4 py-10">
-      <h2 className="font-serif text-2xl text-ink mb-8">Choose your starting point in timeline.</h2>
+      <TribalBackground />
+      <h2 className="font-serif text-2xl text-ink mb-8 font-bold">Choose your starting point in the timeline.</h2>
       
       <div className="space-y-4 w-full max-w-2xl max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
         {plotNodes.map((node, index) => {
@@ -33,7 +35,7 @@ export const PlotNodeSelectionPage: React.FC<PlotNodeSelectionPageProps> = ({
                   onCustomInputChange('');
                 }
               }}
-              className={`border border-[#8D6E63] rounded-xl p-4 cursor-pointer flex items-start gap-4 ${
+              className={`border border-[#8D6E63] rounded-xl p-4 cursor-pointer flex items-start gap-4 opacity-95 hover:opacity-95 ${
                 isSelected 
                   ? 'shadow-inner' 
                   : 'bg-white/40 hover:bg-white/60'
@@ -63,14 +65,14 @@ export const PlotNodeSelectionPage: React.FC<PlotNodeSelectionPageProps> = ({
             }
           }}
           placeholder="Enter your preferred starting point"
-          className="w-full bg-white rounded-xl py-3 px-4 text-lg font-serif text-gray-700 shadow-md border-none focus:outline-none focus:ring-2 focus:ring-ink/20"
+          className="w-full bg-white rounded-xl py-3 px-4 text-lg font-serif text-gray-700 shadow-md border-none focus:outline-none focus:ring-2 focus:ring-ink/20 opacity-80"
         />
       </div>
 
       <div className="mt-10">
         <button 
           onClick={onEnterWorld}
-          className="font-hand text-4xl text-ink hover:scale-105 transition-transform font-bold">
+          className="font-theme text-4xl text-ink hover:scale-105 transition-transform font-bold">
           Enter World
         </button>
       </div>

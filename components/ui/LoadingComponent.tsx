@@ -21,7 +21,7 @@ export const LoadingComponent: React.FC<LoadingComponentProps> = ({
           alt="Loading" 
           className={`${sizeClasses[size]} animate-pulse`}
         />
-        <p className="mt-6 font-serif text-xl text-[#5D4037] tracking-wider">
+        <p className="mt-6 font-theme text-5xl text-[#5D4037] tracking-wider font-bold">
           Loading......
         </p>
       </div>

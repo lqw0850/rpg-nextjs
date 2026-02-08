@@ -14,11 +14,11 @@ export const IpSelectionPage: React.FC<IpSelectionPageProps> = ({
   loading,
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center w-full h-screen relative z-10 overflow-hidden">
+    <div className="flex flex-col items-center justify-center w-full h-screen fixed inset-0 z-10 overflow-hidden">
       {/* 背景图 */}
       <div className="absolute inset-0 flex items-center justify-center select-none pointer-events-none z-0">
         <img src="/v2_t9p0dd.png" alt="Background" className="w-[450px] h-[450px] object-contain" 
-        style={{ top: '60px', position: 'absolute' }}/>
+        style={{ top: '60px', position: 'absolute', opacity: 0.8 }}/>
       </div>
       
       {/* 前景内容 */}
@@ -26,7 +26,7 @@ export const IpSelectionPage: React.FC<IpSelectionPageProps> = ({
         <div className="flex flex-col items-center justify-center relative w-full h-full">
           <h1 className="font-theme absolute select-none drop-shadow-md" 
             style={{ 
-              top: '55px',
+              top: '65px',
               color: 'rgba(112,61,27,1)',
               fontSize: '200px',
               textAlign: 'center'
