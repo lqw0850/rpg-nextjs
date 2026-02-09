@@ -79,86 +79,86 @@ export class GameService {
   }
 
   public async startGame(userId: string, ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string, isAnonymous?: boolean, artStyleId?: string): Promise<{ sessionId: string; storyNode: StoryNode; gameRecordId: number; chatHistory: any[] }> {
-    return this.retryOperation(async () => {
-      if (!isAnonymous) {
-        await databaseService.updateAllIncompleteGameRecords(userId, 2);
-      }
+    if (!isAnonymous) {
+      await databaseService.updateAllIncompleteGameRecords(userId, 2);
+    }
 
-      const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile, isAnonymous, artStyleId);
-      if (!gameRecord) {
-        throw new Error("创建游戏记录失败");
-      }
+    const gameRecord = await databaseService.createGameRecord(userId, ipName, charName, isOc, ocProfile, isAnonymous, artStyleId);
+    if (!gameRecord) {
+      throw new Error("创建游戏记录失败");
+    }
 
-      const result = await this.gameEngine.startGame(ipName, charName, startNode, isOc, ocProfile, gameRecord.id, artStyleId);
-
-      if (!isAnonymous) {
-        await databaseService.createGameRound(
-          gameRecord.id,
-          1,
-          result.storyNode.narrative,
-          result.storyNode.choices,
-          isAnonymous
-        );
-      }
-
-      return {
-        sessionId: result.sessionId,
-        storyNode: result.storyNode,
-        gameRecordId: gameRecord.id,
-        chatHistory: result.chatHistory
-      };
+    const result = await this.retryOperation(async () => {
+      return await this.gameEngine.startGame(ipName, charName, startNode, isOc, ocProfile, gameRecord.id, artStyleId);
     });
+
+    if (!isAnonymous) {
+      await databaseService.createGameRound(
+        gameRecord.id,
+        1,
+        result.storyNode.narrative,
+        result.storyNode.choices,
+        isAnonymous
+      );
+    }
+
+    return {
+      sessionId: result.sessionId,
+      storyNode: result.storyNode,
+      gameRecordId: gameRecord.id,
+      chatHistory: result.chatHistory
+    };
   }
 
   public async makeChoice(gameRecordId: number, choiceText: string, chatHistory: any[], ipName: string, charName: string, isOc: boolean, ocProfile?: string, artStyleId?: string): Promise<StoryNode> {
-    return this.retryOperation(async () => {
-      const gameRecord = await databaseService.getGameRecordById(gameRecordId);
-      if (!gameRecord) {
-        throw new Error("Game record not found.");
-      }
+    const gameRecord = await databaseService.getGameRecordById(gameRecordId);
+    if (!gameRecord) {
+      throw new Error("Game record not found.");
+    }
 
-      const gameRounds = await databaseService.getGameRounds(gameRecordId);
-      if (!gameRounds || gameRounds.length === 0) {
-        throw new Error("No game rounds found.");
-      }
+    const gameRounds = await databaseService.getGameRounds(gameRecordId);
+    if (!gameRounds || gameRounds.length === 0) {
+      throw new Error("No game rounds found.");
+    }
 
-      const currentRoundId = gameRounds[gameRounds.length - 1].id;
-      await databaseService.updateGameRoundChoice(currentRoundId, choiceText);
+    const currentRoundId = gameRounds[gameRounds.length - 1].id;
+    await databaseService.updateGameRoundChoice(currentRoundId, choiceText);
 
-      const history = [...chatHistory];
-      history.push({
-        role: 'model',
-        parts: [{ text: JSON.stringify({
-          narrative: gameRounds[gameRounds.length - 1].plot,
-          choices: gameRounds[gameRounds.length - 1].options,
-          status: 'CONTINUE',
-          characterAnalysis: ''
-        }) }]
-      });
-      history.push({
-        role: 'user',
-        parts: [{ text: `Player makes a choice: ${choiceText}` }]
-      });
-
-      const storyNode = await this.gameEngine.makeChoiceWithHistory(history, choiceText, ipName, charName, isOc, ocProfile, artStyleId);
-
-      if (storyNode.status === 'GAME_OVER' || storyNode.status === 'VICTORY') {
-        const gameStatus = storyNode.status === 'VICTORY' ? 1 : 2;
-        this.updateGameStatus(gameRecordId, gameStatus);
-      }
-
-      const rounds = await databaseService.getGameRounds(gameRecordId);
-      const roundNumber = rounds.length + 1;
-      
-      await databaseService.createGameRound(
-        gameRecordId,
-        roundNumber,
-        storyNode.narrative,
-        storyNode.choices
-      );
-
-      return storyNode;
+    const history = [...chatHistory];
+    history.push({
+      role: 'model',
+      parts: [{ text: JSON.stringify({
+        narrative: gameRounds[gameRounds.length - 1].plot,
+        choices: gameRounds[gameRounds.length - 1].options,
+        status: 'CONTINUE',
+        characterAnalysis: ''
+      }) }]
     });
+    history.push({
+      role: 'user',
+      parts: [{ text: `Player makes a choice: ${choiceText}` }]
+    });
+
+    const storyNode = await this.retryOperation(async () => {
+      return await this.gameEngine.makeChoiceWithHistory(history, choiceText, ipName, charName, isOc, ocProfile, artStyleId);
+    });
+
+    if (storyNode.status === 'GAME_OVER' || storyNode.status === 'VICTORY') {
+      const gameStatus = storyNode.status === 'VICTORY' ? 1 : 2;
+      this.updateGameStatus(gameRecordId, gameStatus);
+    }
+
+    const rounds = await databaseService.getGameRounds(gameRecordId);
+    const roundNumber = rounds.length + 1;
+    
+    await databaseService.createGameRound(
+      gameRecordId,
+      roundNumber,
+      storyNode.narrative,
+      storyNode.choices
+    );
+
+    return storyNode;
   }
 
   public async generateImage(ipName: string, narrative: string, isOcPortrait: boolean = false, ocVisualDescription?: string, artStyle?: string): Promise<string | null> {
