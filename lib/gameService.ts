@@ -117,7 +117,7 @@ export class GameService {
           (session as any).gameRecordId = gameRecord.id;
           (session as any).isAnonymous = isAnonymous;
         }
-      }, ocProfile);
+      }, isOc, ocProfile);
 
       // 创建第一个轮次记录（在 startGame 完成后）
       const session = getSession(result.sessionId);

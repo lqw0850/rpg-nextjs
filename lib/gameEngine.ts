@@ -13,10 +13,10 @@ export class GameEngine {
     this.ai = ai;
   }
 
-  public async generateOpeningNode(ipName: string, charName: string, startNode: string, ocProfile?: string): Promise<{ scene: string; options: { A: string; B: string; C: string } }> {
+  public async generateOpeningNode(ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string): Promise<{ scene: string; options: { A: string; B: string; C: string } }> {
     let prompt = "";
     
-    if (!ocProfile) {
+    if (!isOc) {
       // Canon Character Prompt
       prompt = `
 You are a narrative engine specialized in generating the "critical moment" scene for a canon character at a specific plot node.
@@ -87,7 +87,6 @@ You must follow these steps strictly:
     - Option A: An action primarily driven by the OC's Identity or Affiliation.
     - Option B: An action primarily based on the OC's Core Relationship to the target character.
     - Option C: An action primarily using the OC's unique Special Ability/Item.
-    - Each option MUST be followed by a clear, short-term risk in parentheses.
     
 4. LANGUAGE: The output "scene" and "options" text MUST be in ENGLISH.
 
@@ -135,10 +134,11 @@ ABSOLUTE CONSTRAINTS
     charName: string,
     startNode: string,
     createSession: (id: string, chat: Chat) => void,
+    isOc: boolean,
     ocProfile?: string
   ): Promise<{ sessionId: string; storyNode: StoryNode }> {
     // 1. Generate the initial scene and choices
-    const opening = await this.generateOpeningNode(ipName, charName, startNode, ocProfile);
+    const opening = await this.generateOpeningNode(ipName, charName, startNode, isOc, ocProfile);
 
     // 2. Construct the StoryNode
     const initialStoryNode: StoryNode = {
