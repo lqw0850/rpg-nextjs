@@ -142,36 +142,73 @@ export class GameService {
     });
   }
 
-  public async makeChoice(sessionId: string, choiceText: string): Promise<StoryNode> {
+  public async makeChoice(sessionId: string, choiceText: string, gameRecordId?: number): Promise<StoryNode> {
     return this.retryOperation(async () => {
-      const session = getSession(sessionId);
-      if (!session) throw new Error("Game session not found.");
+      let session = getSession(sessionId);
+      
+      // 当session丢失时，尝试恢复会话
+      if (!session && gameRecordId) {
+        // 使用提供的gameRecordId获取游戏记录
+        const gameRecord = await databaseService.getGameRecordById(gameRecordId);
+        
+        if (gameRecord) {
+          // 获取游戏轮次记录
+          const gameRounds = await databaseService.getGameRounds(gameRecordId);
+          
+          if (gameRounds && gameRounds.length > 0) {
+            // 调用continueGame方法恢复会话
+            const result = await this.continueGame(
+              gameRecordId,
+              gameRecord.ip_name,
+              gameRecord.character_name,
+              gameRounds,
+              gameRecord.is_oc,
+              gameRecord.oc_profile,
+              gameRecord.art_style
+            );
+            
+            // 获取恢复后的session
+            session = getSession(result.sessionId);
+            
+            if (!session) {
+              throw new Error("Failed to restore game session.");
+            }
+          } else {
+            throw new Error("No game rounds found.");
+          }
+        } else {
+          throw new Error("Game session not found.");
+        }
+      } else if (!session) {
+        // 如果没有提供gameRecordId，无法恢复会话
+        throw new Error("Game session not found.");
+      }
       
       updateSessionActivity(sessionId);
       
       // 更新当前轮次的用户选择
-      const gameRecordId = (session as any).gameRecordId;
+      const currentGameRecordId = (session as any).gameRecordId;
       const currentRoundId = (session as any).currentRoundId;
       
-      if (gameRecordId && currentRoundId) {
+      if (currentGameRecordId && currentRoundId) {
         await databaseService.updateGameRoundChoice(currentRoundId, choiceText);
       }
       
       const storyNode = await this.gameEngine.makeChoice(session, choiceText);
 
       // 检查游戏是否结束，更新游戏记录状态
-      if (gameRecordId && (storyNode.status === 'GAME_OVER' || storyNode.status === 'VICTORY')) {
+      if (currentGameRecordId && (storyNode.status === 'GAME_OVER' || storyNode.status === 'VICTORY')) {
         const gameStatus = storyNode.status === 'VICTORY' ? 1 : 2;
-        this.updateGameStatus(gameRecordId, gameStatus);
+        this.updateGameStatus(currentGameRecordId, gameStatus);
       }
 
       // 创建新的轮次记录（为下一轮准备）
-      if (gameRecordId) {
-        const rounds = await databaseService.getGameRounds(gameRecordId);
+      if (currentGameRecordId) {
+        const rounds = await databaseService.getGameRounds(currentGameRecordId);
         const roundNumber = rounds.length + 1;
         
         const newRoundId = await databaseService.createGameRound(
-          gameRecordId,
+          currentGameRecordId,
           roundNumber,
           storyNode.narrative,
           storyNode.choices

@@ -161,7 +161,7 @@ ABSOLUTE CONSTRAINTS
       history: [
         {
           role: 'user',
-          parts: [{ text: `开始故事。背景是《${ipName}》，我是${charName}。我们从这个节点开始：${startNode}。` }]
+          parts: [{ text: `Start the game. The background is ${ipName}. I am ${charName}. We start from this node: ${startNode}.` }]
         },
         {
           role: 'model',
@@ -174,7 +174,7 @@ ABSOLUTE CONSTRAINTS
         }
       ],
       config: {
-        systemInstruction: generateSystemInstruction(ipName, charName, startNode, ocProfile),
+        systemInstruction: generateSystemInstruction(ipName, charName, startNode, isOc || false, ocProfile),
         responseMimeType: "application/json",
         responseSchema: responseSchema,
       },
@@ -197,7 +197,7 @@ ABSOLUTE CONSTRAINTS
     // };
 
     const chatSession = session.chat;
-    const result = await chatSession.sendMessage({ message: `玩家采取行动: ${choiceText}` });
+    const result = await chatSession.sendMessage({ message: `Player makes a choice: ${choiceText}` });
     const rawResponse = JSON.parse(result.text!);
     
     // Map response format to StoryNode format
@@ -235,15 +235,11 @@ ABSOLUTE CONSTRAINTS
       });
       history.push({
         role: 'user',
-        parts: [{ text: `玩家采取行动: ${round.user_choice}` }]
+        parts: [{ text: `Player makes a choice: ${round.user_choice}` }]
       });
     }
 
     // 3. Add the latest round as the current state (without user choice)
-    history.push({
-      role: 'user',
-      parts: [{ text: `继续游戏。背景是《${ipName}》，我是${charName}。我们从这个节点继续：${latestRound.plot}` }]
-    });
     history.push({
       role: 'model',
       parts: [{ text: JSON.stringify({
@@ -265,7 +261,7 @@ ABSOLUTE CONSTRAINTS
             googleSearch: {} // 开启 Google 搜索联网功能
           }
         ],
-        systemInstruction: generateContinueGameInstruction(ipName, charName, historyRounds, isOc, ocProfile),
+        systemInstruction: generateSystemInstruction(ipName, charName, historyRounds[0].plot, isOc || false, ocProfile),
         responseMimeType: "application/json",
         responseSchema: responseSchema,
       },

@@ -1,9 +1,9 @@
-export const generateSystemInstruction = (ipName: string, charName: string, startNode: string, ocProfile?: string) => `
+export const generateSystemInstruction = (ipName: string, charName: string, startNode: string, isOc: boolean, ocProfile?: string) => `
 You are Game Master for an open-ended interactive text adventure.
 The setting for this game is the world of: **${ipName}**.
 The player is controlling the character: **${charName}**.
 
-${ocProfile ? `
+${isOc ? `
 *** IMPORTANT: The player is using an Original Character (OC). Here is the detailed profile ***
 ${ocProfile}
 *** End of Profile ***

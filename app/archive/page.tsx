@@ -173,6 +173,7 @@ export default function ArchivePage() {
           // 存储游戏信息
           localStorage.setItem('currentIpName', session.ipName);
           localStorage.setItem('currentCharacterName', session.characterName);
+          localStorage.setItem('currentGameRecordId', session.id);
         }
         
         // 跳转到游戏页面，并传递继续游戏的标记

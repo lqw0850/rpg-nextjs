@@ -89,9 +89,11 @@ export default function Home() {
         
         const ipName = localStorage.getItem('currentIpName') || '';
         const characterName = localStorage.getItem('currentCharacterName') || '';
+        const currentGameRecordId = localStorage.getItem('currentGameRecordId') || '';
         
         setIpName(ipName);
         setCharacterName(characterName);
+        setGameRecordId(parseInt(currentGameRecordId));
         
         loadGameState();
       }
@@ -649,13 +651,14 @@ ${ocQuestions
     
     setShowChoices(false);
     setIsGeneratingNextChapter(true);
+    // console.log('Sending request:', { sessionId, choiceText, gameRecordId });
     try {
       const response = await fetch('/api/make-choice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sessionId, choiceText }),
+        body: JSON.stringify({ sessionId, choiceText, gameRecordId }),
       });
       const data = await response.json();
       setStoryNode(data);
