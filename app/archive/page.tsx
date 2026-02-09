@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Calendar, ChevronRight, User, ArrowLeft, Clock, ScrollText, CheckCircle2, Play } from 'lucide-react';
-import { Button } from '../../components/Button';
 import { useSupabase } from '../../lib/supabase/supabaseProvider';
 import { supabase } from '../../lib/supabase/supabaseClient';
 import { GameStatus } from '../../types';
+import { LoadingComponent } from '../../components/ui/LoadingComponent';
+import { TribalBackground } from '../../components/TribalBackground';
 
 interface ArchiveSession {
   id: string;
@@ -60,7 +61,7 @@ export default function ArchivePage() {
         .order('created_at', { ascending: false });
 
       if (recordsError) {
-        console.error('获取游戏记录失败:', recordsError);
+        console.error('Failed to fetch game records:', recordsError);
         return;
       }
 
@@ -81,7 +82,7 @@ export default function ArchivePage() {
           .order('round_number', { ascending: true });
 
         if (roundsError) {
-          console.error('获取轮次记录失败:', roundsError);
+          console.error('Failed to fetch round records:', roundsError);
           continue;
         }
 
@@ -90,7 +91,7 @@ export default function ArchivePage() {
           turnNumber: round.round_number,
           narrative: round.plot,
           choices: round.options || [],
-          selectedChoice: round.user_choice || '未选择'
+          selectedChoice: round.user_choice || 'Not selected'
         }));
 
         // 转换状态
@@ -113,7 +114,7 @@ export default function ArchivePage() {
           id: record.id.toString(),
           ipName: record.ip_name,
           characterName: record.character_name,
-          date: new Date(record.created_at).toLocaleDateString('zh-CN'),
+          date: new Date(record.created_at).toLocaleDateString('en-US'),
           status: status,
           turns: turns,
           finalAnalysis: record.character_summary
@@ -179,42 +180,36 @@ export default function ArchivePage() {
         // 跳转到游戏页面，并传递继续游戏的标记
         router.push('/?continue=true');
       } else {
-        alert('继续游戏失败，请重试');
+        alert('Failed to continue game, please try again');
       }
     } catch (error) {
-      console.error('继续游戏失败:', error);
-      alert('继续游戏失败，请重试');
+      console.error('Failed to continue game:', error);
+      alert('Failed to continue game, please try again');
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-ocean-900 via-ocean-800 to-ocean-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ocean-400 mx-auto mb-4"></div>
-          <p className="text-ocean-300 font-serif">正在加载时空档案...</p>
-        </div>
-      </div>
-    );
+    return <LoadingComponent />;
   }
 
   if (selectedSession) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-ocean-900 via-ocean-800 to-ocean-900 text-white p-6">
-        <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
+      <div className="min-h-screen bg-[#EFEAD8] text-[#5D4037] p-6 relative">
+        <TribalBackground />
+        <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-300 relative z-10">
           {/* Header */}
-          <div className="flex items-center gap-4 mb-6 sticky top-0 bg-ocean-900/90 backdrop-blur-md p-4 rounded-xl border border-ocean-700/50 z-20 shadow-xl">
-            <Button onClick={() => setSelectedSession(null)} variant="secondary" className="p-2 px-3">
-              <ArrowLeft size={20} />
-            </Button>
+          <div className="flex items-center gap-4 mb-6 sticky top-0 bg-[#EFEAD8]/90 backdrop-blur-md p-4 rounded-xl border border-[#D7CCC8] z-20 shadow-xl">
+            <button onClick={() => setSelectedSession(null)} className="p-2 px-3 bg-[#EFEAD8] hover:bg-[#BCAAA4] rounded-lg transition-colors">
+              <ArrowLeft size={20} className="text-[#5D4037]" />
+            </button>
             <div>
-              <h2 className="text-xl font-serif text-white flex items-center gap-2">
-                {selectedSession.ipName} <span className="text-ocean-400 text-sm">•</span> {selectedSession.characterName}
+              <h2 className="text-xl font-serif flex items-center gap-2">
+                {selectedSession.ipName} <span className="text-[#5D4037] text-sm">•</span> {selectedSession.characterName}
               </h2>
-              <div className="flex items-center gap-3 text-xs text-ocean-300 mt-1">
+              <div className="flex items-center gap-3 text-xs text-[#8D6E63] mt-1">
                 <span className="flex items-center gap-1"><Calendar size={12}/> {selectedSession.date}</span>
-                <span className={`px-2 py-0.5 rounded-full border ${selectedSession.status === 'VICTORY' ? 'border-yellow-500/50 text-yellow-200 bg-yellow-900/20' : selectedSession.status === 'GAME_OVER' ? 'border-red-500/50 text-red-200 bg-red-900/20' : 'border-blue-500/50 text-blue-200 bg-blue-900/20'}`}>
-                  {selectedSession.status === 'PLAYING' ? '未完结' : selectedSession.status}
+                <span className={`px-2 py-0.5 rounded-full border ${selectedSession.status === 'VICTORY' ? 'border-yellow-500/50 text-yellow-700 bg-yellow-100' : selectedSession.status === 'GAME_OVER' ? 'border-red-500/50 text-red-700 bg-red-100' : 'border-blue-500/50 text-blue-700 bg-blue-100'}`}>
+                  {selectedSession.status === 'PLAYING' ? 'In Progress' : selectedSession.status}
                 </span>
               </div>
             </div>
@@ -223,30 +218,30 @@ export default function ArchivePage() {
           {/* Timeline */}
           <div className="space-y-8 relative px-2 md:px-6 pb-12">
             {/* Vertical Line */}
-            <div className="absolute left-6 md:left-10 top-4 bottom-4 w-0.5 bg-gradient-to-b from-ocean-400/50 via-ocean-600/30 to-transparent"></div>
+            <div className="absolute left-6 md:left-10 top-4 bottom-4 w-0.5 bg-gradient-to-b from-[#8D6E63]/50 via-[#A1887F]/30 to-transparent"></div>
 
             {selectedSession.turns.map((turn, idx) => (
               <div key={idx} className="relative pl-12 md:pl-16 group">
                 {/* Turn Number Bubble */}
-                <div className="absolute left-0 top-0 w-12 h-12 md:w-14 md:h-14 rounded-full bg-ocean-900 border-2 border-ocean-500 flex items-center justify-center z-10 shadow-[0_0_15px_rgba(96,165,250,0.3)] text-ocean-100 font-serif font-bold text-lg md:text-xl">
+                <div className="absolute left-0 top-0 w-12 h-12 md:w-14 md:h-14 rounded-full bg-[#EFEAD8] border-2 border-[#8D6E63] flex items-center justify-center z-10 shadow-[0_0_15px_rgba(141,110,99,0.3)] text-[#5D4037] font-serif font-bold text-lg md:text-xl">
                   {turn.turnNumber}
                 </div>
 
                 {/* Content Card */}
-                <div className="bg-ocean-800/30 border border-ocean-600/30 rounded-xl overflow-hidden hover:bg-ocean-800/50 transition-colors">
+                <div className="bg-[#fafaed] border border-[#D7CCC8] rounded-xl overflow-hidden hover:bg-[#FFFDE7] transition-colors">
                   {/* Narrative */}
-                  <div className="p-5 md:p-6 text-ocean-100/90 font-story leading-relaxed whitespace-pre-wrap text-base md:text-lg">
+                  <div className="p-5 md:p-6 text-[#5D4037]/90 font-story leading-relaxed whitespace-pre-wrap text-base md:text-lg">
                     {turn.narrative}
                   </div>
                   
                   {/* Choice Made */}
-                  <div className="bg-ocean-900/50 p-4 border-t border-ocean-700/50 flex items-start gap-3">
-                    <div className="mt-1 text-green-400">
+                  <div className="bg-[#EFEAD8] p-4 border-t border-[#D7CCC8] flex items-start gap-3">
+                    <div className="mt-1 text-green-600">
                       <CheckCircle2 size={18} />
                     </div>
                     <div>
-                      <span className="text-xs text-ocean-400 font-serif uppercase tracking-wider block mb-1">你的抉择</span>
-                      <p className="text-white font-story italic">"{turn.selectedChoice}"</p>
+                      <span className="text-xs text-[#8D6E63] font-serif uppercase tracking-wider block mb-1">Your Choice</span>
+                      <p className="text-[#5D4037] font-story italic">"{turn.selectedChoice}"</p>
                     </div>
                   </div>
                 </div>
@@ -257,13 +252,13 @@ export default function ArchivePage() {
             {selectedSession.finalAnalysis && (
               <div className="relative pl-12 md:pl-16">
                 <div className="absolute left-1 md:left-2 top-0">
-                  <ScrollText size={32} className="text-purple-300 filter drop-shadow-[0_0_8px_rgba(216,180,254,0.6)]" />
+                  <ScrollText size={32} className="text-purple-600 filter drop-shadow-[0_0_8px_rgba(142,68,173,0.3)]" />
                 </div>
-                <div className="bg-gradient-to-br from-purple-900/30 to-ocean-900/50 border border-purple-500/30 rounded-xl p-6 shadow-2xl">
-                  <h3 className="font-serif text-lg text-purple-200 mb-3 flex items-center gap-2">
-                    <ScrollText size={18}/> 灵魂映像 (Ending Analysis)
+                <div className="bg-gradient-to-br from-purple-100 to-[#F5F5DC] border border-purple-300 rounded-xl p-6 shadow-2xl">
+                  <h3 className="font-serif text-lg text-purple-700 mb-3 flex items-center gap-2">
+                    <ScrollText size={18}/> Soul Reflection (Ending Analysis)
                   </h3>
-                  <p className="font-story text-ocean-100 leading-relaxed italic">
+                  <p className="font-story text-[#5D4037] leading-relaxed italic">
                     {selectedSession.finalAnalysis}
                   </p>
                 </div>
@@ -276,39 +271,40 @@ export default function ArchivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-ocean-900 via-ocean-800 to-ocean-900 text-white p-6">
-      <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
+    <div className="min-h-screen bg-[#EFEAD8] text-[#5D4037] p-6 relative">
+      <TribalBackground />
+      <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-ocean-800/50 rounded-lg border border-ocean-600/50">
-              <Clock size={24} className="text-ocean-200" />
+            <div className="p-3 bg-[#fafaed] rounded-lg border border-[#D7CCC8]">
+              <Clock size={24} className="text-[#8D6E63]" />
             </div>
             <div>
-              <h2 className="text-2xl font-serif text-white">时空档案</h2>
-              <p className="text-ocean-300 text-sm">回顾你所经历的命运线</p>
+              <h2 className="text-2xl font-serif">Time Archives</h2>
+              <p className="text-[#8D6E63] text-sm">Recall the fate lines you've experienced</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {latestPlayingSession && (
-              <Button 
+              <button 
                 onClick={() => handleContinueGame(latestPlayingSession)}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                className="flex items-center gap-2 bg-[#8D6E63] hover:bg-[#6D4C41] text-white px-4 py-2 rounded-lg transition-colors"
               >
                 <Play size={16} />
-                继续游戏
-              </Button>
+                Continue Game
+              </button>
             )}
-            <Button onClick={handleBack} variant="secondary">
-              返回主控台
-            </Button>
+            <button onClick={handleBack} className="bg-[#D7CCC8] hover:bg-[#BCAAA4] text-[#5D4037] px-4 py-2 rounded-lg transition-colors">
+              Back to Main Console
+            </button>
           </div>
         </div>
 
         {archives.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-ocean-400/50 border-2 border-dashed border-ocean-800 rounded-xl">
+          <div className="col-span-full py-16 text-center text-[#8D6E63]/50 border-2 border-dashed border-[#D7CCC8] rounded-xl">
             <BookOpen size={48} className="mx-auto mb-4 opacity-50"/>
-            <p className="font-serif">暂无存档记录</p>
-            <p className="text-sm mt-2">去创造新的故事吧...</p>
+            <p className="font-serif">No Archive Records</p>
+            <p className="text-sm mt-2">Go create new stories...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -319,36 +315,34 @@ export default function ArchivePage() {
                 <div key={session.id} className="relative">
                   <button
                     onClick={() => setSelectedSession(session)}
-                    className={`group w-full bg-ocean-900/40 border hover:border-ocean-400 hover:bg-ocean-800/40 p-5 rounded-xl text-left transition-all duration-300 shadow-lg relative overflow-hidden ${
-                      isLatestPlaying ? 'border-green-500/50' : 'border-ocean-700/50'
-                    }`}
-                  >
+                    className={`group w-full bg-[#fafaed] border hover:border-[#8D6E63] p-5 rounded-xl text-left transition-all duration-300 shadow-lg relative overflow-hidden border-[#D7CCC8]`
+                    }>
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                       <BookOpen size={64} />
                     </div>
 
                     <div className="relative z-10 space-y-4">
                       <div className="flex justify-between items-start">
-                        <h3 className="text-lg font-serif font-bold text-white group-hover:text-ocean-100 transition-colors">
+                        <h3 className="text-lg font-serif font-bold group-hover:text-[#5D4037] transition-colors">
                           {session.ipName}
                         </h3>
                         <span className={`text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider ${
-                          session.status === 'VICTORY' ? 'border-yellow-500/30 text-yellow-200' : 
-                          session.status === 'GAME_OVER' ? 'border-red-500/30 text-red-200' : 'border-blue-500/30 text-blue-200'
+                          session.status === 'VICTORY' ? 'border-yellow-500/30 text-yellow-700' : 
+                          session.status === 'GAME_OVER' ? 'border-red-500/30 text-red-700' : 'border-blue-500/30 text-blue-700'
                         }`}>
-                          {session.status === 'PLAYING' ? '未完结' : session.status}
+                          {session.status === 'PLAYING' ? 'In Progress' : session.status}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 text-ocean-200 text-sm">
+                      <div className="flex items-center gap-2 text-[#8D6E63] text-sm">
                         <User size={14} />
                         <span>{session.characterName}</span>
                       </div>
 
-                      <div className="pt-2 border-t border-ocean-700/30 flex justify-between items-center text-xs text-ocean-400">
+                      <div className="pt-2 border-t border-[#D7CCC8] flex justify-between items-center text-xs text-[#8D6E63]">
                         <span>{session.date}</span>
-                        <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-ocean-300 group-hover:text-white">
-                          查看记录 ({session.turns.length} 轮) <ChevronRight size={14} />
+                        <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-[#8D6E63] group-hover:text-[#5D4037]">
+                          View Record ({session.turns.length} turns) <ChevronRight size={14} />
                         </span>
                       </div>
                     </div>
