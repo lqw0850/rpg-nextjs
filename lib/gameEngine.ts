@@ -1,7 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { generateSystemInstruction, generateContinueGameInstruction } from "./prompts";
 import { responseSchema, openingSceneSchema } from "./schemas";
-import { createSession } from "./sessionManager";
 import type { GameSession } from "./types";
 import type { StoryNode } from "../types";
 import type { Chat } from "@google/genai";
@@ -17,7 +16,6 @@ export class GameEngine {
     let prompt = "";
     
     if (!isOc) {
-      // Canon Character Prompt
       prompt = `
 You are a narrative engine specialized in generating the "critical moment" scene for a canon character at a specific plot node.
 
@@ -59,7 +57,6 @@ ABSOLUTE CONSTRAINTS
 - No Omniscience: Do not generate options based on knowledge of future events that the character cannot know.
       `;
     } else {
-      // OC Prompt
       prompt = `
 You are a "Fate Intervention" narrative engine. Your sole purpose is to place the user's Original Character (OC) at the scene moments before a canonical character makes a tragic key decision, and to provide options to attempt to alter that fate.
 
@@ -117,9 +114,6 @@ ABSOLUTE CONSTRAINTS
       }
     });
 
-    // console.log(response)
-    // console.log(response.candidates?.[0]?.content?.parts?.[0]?.text)
-    // 兼容性获取文本内容
     const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!responseText) {
@@ -133,14 +127,13 @@ ABSOLUTE CONSTRAINTS
     ipName: string,
     charName: string,
     startNode: string,
-    createSession: (id: string, chat: Chat) => void,
     isOc: boolean,
-    ocProfile?: string
-  ): Promise<{ sessionId: string; storyNode: StoryNode }> {
-    // 1. Generate the initial scene and choices
+    ocProfile?: string,
+    gameRecordId?: number,
+    artStyleId?: string
+  ): Promise<{ sessionId: string; storyNode: StoryNode; chatHistory: any[] }> {
     const opening = await this.generateOpeningNode(ipName, charName, startNode, isOc, ocProfile);
 
-    // 2. Construct the StoryNode
     const initialStoryNode: StoryNode = {
       narrative: opening.scene,
       choices: [
@@ -152,55 +145,47 @@ ABSOLUTE CONSTRAINTS
       characterAnalysis: ''
     };
 
-    // 3. Generate session ID
     const sessionId = crypto.randomUUID();
 
-    // 4. Initialize the Main Chat Session with primed history
+    const chatHistory = [
+      {
+        role: 'user',
+        parts: [{ text: `Start the game. The background is ${ipName}. I am ${charName}. We start from this node: ${startNode}.` }]
+      },
+      {
+        role: 'model',
+        parts: [{ text: JSON.stringify({
+          narration: opening.scene,
+          options: opening.options,
+          status: 'CONTINUE',
+          characterAnalysis: ''
+        }) }]
+      }
+    ];
+
+    return { sessionId, storyNode: initialStoryNode, chatHistory };
+  }
+
+  public async makeChoiceWithHistory(history: any[], choiceText: string, ipName: string, charName: string, isOc: boolean, ocProfile?: string, artStyleId?: string): Promise<StoryNode> {
+    // console.log('make-choice', history[0]?.parts[0]?.text);
     const chat = this.ai.chats.create({
       model: "gemini-3-flash-preview",
-      history: [
-        {
-          role: 'user',
-          parts: [{ text: `Start the game. The background is ${ipName}. I am ${charName}. We start from this node: ${startNode}.` }]
-        },
-        {
-          role: 'model',
-          parts: [{ text: JSON.stringify({
-            narration: opening.scene,
-            options: opening.options,
-            status: 'CONTINUE',
-            characterAnalysis: ''
-          }) }]
-        }
-      ],
+      history: history,
       config: {
-        systemInstruction: generateSystemInstruction(ipName, charName, startNode, isOc || false, ocProfile),
+        tools: [
+          {
+            googleSearch: {}
+          }
+        ],
+        systemInstruction: generateSystemInstruction(ipName, charName, history[0]?.parts[0]?.text || '', isOc, ocProfile),
         responseMimeType: "application/json",
         responseSchema: responseSchema,
       },
     });
-    
-    // 5. Create session
-    createSession(sessionId, chat);
 
-    return { sessionId, storyNode: initialStoryNode };
-  }
-
-  public async makeChoice(session: GameSession, choiceText: string): Promise<StoryNode> {
-    //测试代码，将状态调为结束，调试结尾页面
-    // return {
-    //   narrative: "You search your memory, recalling the long nights spent under the covers with a flashlight at Privet Drive. 'Asphodel and wormwood make a sleeping potion so powerful it is known as the Draught of Living Death, sir,' you say clearly. The room goes quiet; even Hermione looks surprised. Snape’s eyes narrow, his disappointment palpable that he couldn't humiliate you instantly. 'Tut, tut — fame clearly isn't everything,' he sneers, refusing to award Gryffindor any points for the correct answer. 'Let's try again. Potter, where would you look if I told you to find me a bezoar?' He leans in closer, his shadow looming over your desk, determined to find the limit of your pre-term reading and break your newfound confidence.",
-    //   choices: [],
-    //   status: 'VICTORY',
-    //   characterLabel: 'Shero',
-    //   characterAnalysis: "Harry Potter is a series of seven fantasy novels written by British author J. K. Rowling. The novels chronicle the lives of a young wizard, Harry Potter, and his friends, Ron Weasley and Hermione Granger, all of whom are students at Hogwarts School of Witchcraft and Wizardry. The main story arc concerns Harry's conflict with Lord Voldemort, a dark wizard who intends to become immortal, overthrow the wizard governing body known as the Ministry of Magic, and subjugate all wizards and non-magical people, known in-universe as Muggles."
-    // };
-
-    const chatSession = session.chat;
-    const result = await chatSession.sendMessage({ message: `Player makes a choice: ${choiceText}` });
+    const result = await chat.sendMessage({ message: `Player makes a choice: ${choiceText}` });
     const rawResponse = JSON.parse(result.text!);
-    
-    // Map response format to StoryNode format
+    // console.log('make-choice', rawResponse);
     const storyNode: StoryNode = {
       narrative: rawResponse.narration,
       choices: [
@@ -213,74 +198,5 @@ ABSOLUTE CONSTRAINTS
     };
 
     return storyNode;
-  }
-
-  public async continueGame(ipName: string, charName: string, latestRound: any, historyRounds: any[], isOc?: boolean, ocProfile?: any, artStyleId?: string): Promise<{ sessionId: string; storyNode: StoryNode }> {
-    // 1. Generate session ID
-    const sessionId = crypto.randomUUID();
-
-    // 2. Build history from previous rounds
-    const history = [];
-    
-    // Add history rounds as context
-    for (const round of historyRounds) {
-      history.push({
-        role: 'model',
-        parts: [{ text: JSON.stringify({
-          narration: round.plot,
-          options: round.options,
-          status: 'CONTINUE',
-          characterAnalysis: ''
-        }) }]
-      });
-      history.push({
-        role: 'user',
-        parts: [{ text: `Player makes a choice: ${round.user_choice}` }]
-      });
-    }
-
-    // 3. Add the latest round as the current state (without user choice)
-    history.push({
-      role: 'model',
-      parts: [{ text: JSON.stringify({
-        narration: latestRound.plot,
-        options: latestRound.options,
-        status: 'CONTINUE',
-        characterAnalysis: ''
-      }) }]
-    });
-
-    // 4. Initialize the Main Chat Session with history
-    const chat = this.ai.chats.create({
-      model: "gemini-3-flash-preview",
-      history: history,
-      config: {
-        // 联网搜索设置
-        tools: [
-          {
-            googleSearch: {} // 开启 Google 搜索联网功能
-          }
-        ],
-        systemInstruction: generateSystemInstruction(ipName, charName, historyRounds[0].plot, isOc || false, ocProfile),
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-      },
-    });
-
-    // 5. Create initial story node from latest round
-    const initialStoryNode: StoryNode = {
-      narrative: latestRound.plot,
-      choices: latestRound.options.map((opt: any, index: number) => ({
-        id: String.fromCharCode(65 + index), // A, B, C
-        text: opt
-      })),
-      status: 'CONTINUE',
-      characterAnalysis: ''
-    };
-
-    // 6. Create session
-    createSession(sessionId, chat, ipName, ocProfile, artStyleId);
-
-    return { sessionId, storyNode: initialStoryNode };
   }
 }

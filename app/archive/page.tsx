@@ -150,38 +150,19 @@ export default function ArchivePage() {
 
   const handleContinueGame = async (session: ArchiveSession) => {
     try {
-      // 调用继续游戏的API
-      const response = await fetch('/api/continue-game', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          gameRecordId: parseInt(session.id),
-          ipName: session.ipName,
-          characterName: session.characterName
-        }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
         
-        // 存储sessionId到localStorage
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('gameSessionId', data.sessionId);
-          // 存储继续游戏的状态标记
-          localStorage.setItem('continueGame', 'true');
-          // 存储游戏信息
-          localStorage.setItem('currentIpName', session.ipName);
-          localStorage.setItem('currentCharacterName', session.characterName);
-          localStorage.setItem('currentGameRecordId', session.id);
-        }
-        
-        // 跳转到游戏页面，并传递继续游戏的标记
-        router.push('/?continue=true');
-      } else {
-        alert('Failed to continue game, please try again');
+      // 存储sessionId到localStorage
+      if (typeof window !== 'undefined') {
+        // 存储继续游戏的状态标记
+        localStorage.setItem('continueGame', 'true');
+        // 存储游戏信息
+        localStorage.setItem('currentIpName', session.ipName);
+        localStorage.setItem('currentCharacterName', session.characterName);
+        localStorage.setItem('currentGameRecordId', session.id);
       }
+      
+      // 跳转到游戏页面，并传递继续游戏的标记
+      router.push('/?continue=true');
     } catch (error) {
       console.error('Failed to continue game:', error);
       alert('Failed to continue game, please try again');

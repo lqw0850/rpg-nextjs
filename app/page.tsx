@@ -6,7 +6,8 @@ import { GameStatus, type StoryNode, type Choice } from '../types';
 import { useSupabase } from '../lib/supabase/supabaseProvider';
 import { supabase } from '../lib/supabase/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { ART_STYLES, DEFAULT_ART_STYLE, getArtStyleByCategory, type ArtStyle } from '../lib/artStyles';
+import { getArtStyleById, DEFAULT_ART_STYLE, getArtStyleByCategory, type ArtStyle } from '../lib/artStyles';
+import { useIndexedDBSession, useIndexedDBCleanup } from '../hooks/useIndexedDBSession';
 import { IpSelectionPage } from '../components/game/IpSelectionPage';
 import { StoryDetailsPage } from '../components/game/StoryDetailsPage';
 import { RoleSelectionPage } from '../components/game/RoleSelectionPage';
@@ -68,11 +69,15 @@ export default function Home() {
   const [plotNodes, setPlotNodes] = useState<string[]>([]);
   const [customStartNode, setCustomStartNode] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const { session: indexedDBSession, saveSession: saveToIndexedDB, updateChatHistory: updateIndexedDBChatHistory } = useIndexedDBSession(sessionId);
+  useIndexedDBCleanup();
+
   useEffect(() => {
-    if (!authLoading && user && sessionId && typeof window !== 'undefined') {
+    if (!authLoading && user && typeof window !== 'undefined') {
       const continueGame = localStorage.getItem('continueGame');
       const searchParams = new URLSearchParams(window.location.search);
       
@@ -95,14 +100,12 @@ export default function Home() {
         setCharacterName(characterName);
         setGameRecordId(parseInt(currentGameRecordId));
         
-        loadGameState();
+        loadGameState(parseInt(currentGameRecordId));
       }
     }
-  }, [authLoading, user, sessionId, router]);
+  }, [authLoading, user, router]);
 
-  const loadGameState = async () => {
-    if (!sessionId) return;
-    
+  const loadGameState = async (currentGameRecordId: number) => {
     setLoading(true);
     try {
       const response = await fetch('/api/get-game-state', {
@@ -110,14 +113,40 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ gameRecordId: currentGameRecordId }),
       });
       
       if (response.ok) {
         const data = await response.json();
         setStoryNode(data.storyNode);
+        setChatHistory(data.chatHistory || []);
         setStatus(GameStatus.PLAYING);
         setShowChoices(true);
+        
+        if (data.gameRecord) {
+          setIpName(data.gameRecord.ipName);
+          setCharacterName(data.gameRecord.characterName);
+          setFinalOcProfile(data.gameRecord.ocProfile || '');
+          setSelectedArtStyle(getArtStyleById(data.gameRecord.artStyle) || DEFAULT_ART_STYLE);
+          
+          const newSessionId = crypto.randomUUID();
+          setSessionId(newSessionId);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('gameSessionId', newSessionId);
+          }
+          
+          await saveToIndexedDB({
+            id: newSessionId,
+            gameRecordId: currentGameRecordId,
+            ipName: data.gameRecord.ipName,
+            charName: data.gameRecord.characterName,
+            isOc: data.gameRecord.isOc,
+            ocVisualDescription: data.gameRecord.ocProfile || '',
+            artStyleId: data.gameRecord.artStyle,
+            lastActivity: Date.now(),
+            chatHistory: data.chatHistory || []
+          });
+        }
         
         setLoadingImage(true);
         try {
@@ -127,9 +156,11 @@ export default function Home() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-              sessionId,
+              ipName: data.gameRecord.ipName,
               narrative: data.storyNode.narrative,
               isOcPortrait: false,
+              ocVisualDescription: data.gameRecord.ocProfile || '',
+              artStyle: data.gameRecord.artStyle,
             }),
           });
           
@@ -148,15 +179,17 @@ export default function Home() {
         console.error('加载游戏状态失败');
         if (typeof window !== 'undefined') {
           localStorage.removeItem('gameSessionId');
+          localStorage.removeItem('currentGameRecordId');
         }
-        setSessionId('');
+        setGameRecordId(null);
       }
     } catch (error) {
       console.error('加载游戏状态失败:', error);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('gameSessionId');
+        localStorage.removeItem('currentGameRecordId');
       }
-      setSessionId('');
+      setGameRecordId(null);
     } finally {
       setLoading(false);
     }
@@ -261,12 +294,28 @@ export default function Home() {
         }),
       });
       const data = await response.json();
-      const { sessionId: newSessionId, gameRecordId: newGameRecordId, ...initialNode } = data;
+      const { sessionId: newSessionId, gameRecordId: newGameRecordId, chatHistory: newChatHistory, ...initialNode } = data;
       setSessionId(newSessionId);
       setGameRecordId(newGameRecordId);
+      setChatHistory(newChatHistory);
+      
       if (typeof window !== 'undefined') {
         localStorage.setItem('gameSessionId', newSessionId);
+        localStorage.setItem('currentGameRecordId', newGameRecordId.toString());
       }
+      
+      await saveToIndexedDB({
+        id: newSessionId,
+        gameRecordId: newGameRecordId,
+        ipName,
+        charName: characterName,
+        isOc: charMode === 'OC',
+        ocVisualDescription: finalOcProfile || '',
+        artStyleId: selectedArtStyle.id,
+        lastActivity: Date.now(),
+        chatHistory: newChatHistory
+      });
+      
       setStoryNode(initialNode);
       setStatus(GameStatus.PLAYING);
       setShowChoices(false);
@@ -279,9 +328,11 @@ export default function Home() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            sessionId: newSessionId,
+            ipName,
             narrative: initialNode.narrative,
             isOcPortrait: false,
+            ocVisualDescription: finalOcProfile || '',
+            artStyle: selectedArtStyle.id,
           }),
         });
         
@@ -508,7 +559,7 @@ ${ocQuestions
       }
       
       const image = await imageResponse.json();
-      console.log('Generated image response:', image);
+      // console.log('Generated image response:', image);
       
       if (image && typeof image === 'string' && image.startsWith('data:')) {
         setOcImage(image);
@@ -540,6 +591,7 @@ ${ocQuestions
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
+          ipName,
           narrative: "Portrait shot, facing camera, character sheet style.", 
           isOcPortrait: true,
           ocVisualDescription: finalOcProfile,
@@ -581,6 +633,7 @@ ${ocQuestions
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
+          ipName,
           narrative: `Portrait shot, facing camera, character sheet style.`, 
           isOcPortrait: true,
           ocVisualDescription: newFinalOcProfile,
@@ -637,8 +690,10 @@ ${ocQuestions
     setSelectedArtStyle(DEFAULT_ART_STYLE);
     setShowArtStyles(false);
     setShowEndingSummary(false);
+    setChatHistory([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('gameSessionId');
+      localStorage.removeItem('currentGameRecordId');
     }
   };
 
@@ -651,38 +706,66 @@ ${ocQuestions
     
     setShowChoices(false);
     setIsGeneratingNextChapter(true);
-    // console.log('Sending request:', { sessionId, choiceText, gameRecordId });
     try {
       const response = await fetch('/api/make-choice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sessionId, choiceText, gameRecordId }),
+        body: JSON.stringify({ 
+          gameRecordId, 
+          choiceText, 
+          chatHistory,
+          ipName,
+          charName: characterName,
+          isOc: charMode === 'OC',
+          ocProfile: finalOcProfile,
+          artStyleId: selectedArtStyle.id
+        }),
       });
       const data = await response.json();
       setStoryNode(data);
       setCustomInput('');
       setShowChoices(false);
       
-      // 根据故事节点状态更新游戏状态
       if (data.status === 'GAME_OVER') {
         setStatus(GameStatus.GAME_OVER);
       } else if (data.status === 'VICTORY') {
         setStatus(GameStatus.VICTORY);
       }
       
+      await updateIndexedDBChatHistory(choiceText, data);
+      
+      const newChatHistory = [...chatHistory];
+      newChatHistory.push({
+        role: 'user',
+        parts: [{ text: `Player makes a choice: ${choiceText}` }]
+      });
+      newChatHistory.push({
+        role: 'model',
+        parts: [{ text: JSON.stringify({
+          narration: data.narrative,
+          options: data.choices,
+          status: data.status,
+          characterAnalysis: data.characterAnalysis || ''
+        }) }]
+      });
+      setChatHistory(newChatHistory);
+      
       setLoadingImage(true);
       try {
+        // console.log('generate-image', selectedArtStyle.id);
         const imageResponse = await fetch('/api/generate-image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            sessionId,
+            ipName,
             narrative: data.narrative,
             isOcPortrait: false,
+            ocVisualDescription: finalOcProfile || '',
+            artStyle: selectedArtStyle.id,
           }),
         });
         

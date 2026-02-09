@@ -30,9 +30,12 @@ export interface GameSession {
   id: string;
   chat: Chat;
   ipName: string;
+  charName: string;
+  isOc: boolean;
   ocVisualDescription: string;
   artStyleId: string;
   lastActivity?: number;
+  gameRecordId?: number;
 }
 
 interface OpeningSceneResult {
